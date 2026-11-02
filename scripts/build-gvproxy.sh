@@ -12,7 +12,7 @@ chmod -R u+w "$WORK/src"
 "$ROOT/scripts/verify-pinned-source.sh" "$WORK/src" 0b0819c174331f5b86d96db3ab7aad7dd126078e
 cd "$WORK/src"
 git apply "$ROOT/build/patches/gvproxy-egress-policy-v2.patch"
-GOWORK=off go build -o "$WORK/gvproxy" ./cmd/gvproxy
+GOWORK=off go build -trimpath -buildvcs=false -ldflags=-buildid= -o "$WORK/gvproxy" ./cmd/gvproxy
 mkdir -p "$(dirname -- "$OUT")"
 cp "$WORK/gvproxy" "$OUT"
 chmod 0755 "$OUT"

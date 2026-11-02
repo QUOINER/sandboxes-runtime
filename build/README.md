@@ -78,6 +78,10 @@ The containerd process must find the patched shim on PATH before the stock
 installation. `scripts/build-nerdbox-shim.sh` builds and signs it.
 
 Both native build scripts verify the source checkout's exact manifest commit
-and reject dirty or untracked source trees before applying patches. The runtime
-adapter must consume these artifacts from explicit paths; it must not download
-`@latest` components during a reproducible build.
+and reject dirty or untracked source trees before applying patches. Go builds
+use `-trimpath`, disable VCS stamping, and clear the Go build ID so independent
+build directories do not affect the unsigned payload digest. The nerdbox shim
+is then ad-hoc signed for local macOS execution; that signature is not a
+release signature or provenance statement. The runtime adapter must consume
+these artifacts from explicit paths; it must not download `@latest`
+components during a reproducible build.

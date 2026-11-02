@@ -19,7 +19,7 @@ git apply "$ROOT/build/patches/nerdbox-proxy-channel.patch"
 CGO_ENABLED=1 \
 CGO_CFLAGS="-I${LIBKRUN_PREFIX:-/opt/homebrew/opt/libkrun}/include" \
 CGO_LDFLAGS="-L${LIBKRUN_PREFIX:-/opt/homebrew/opt/libkrun}/lib -lkrun" \
-GOWORK=off go build -o "$WORK/shim" ./cmd/containerd-shim-nerdbox-v1
+GOWORK=off go build -trimpath -buildvcs=false -ldflags=-buildid= -o "$WORK/shim" ./cmd/containerd-shim-nerdbox-v1
 codesign --force --sign - \
   --entitlements cmd/containerd-shim-nerdbox-v1/containerd-shim-nerdbox-v1.entitlements \
   "$WORK/shim"

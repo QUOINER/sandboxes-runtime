@@ -40,6 +40,11 @@ func TestNativeBuildScriptsUseManifestCommits(t *testing.T) {
 		if got := strings.Count(scriptText, "verify-pinned-source.sh"); got != 2 {
 			t.Errorf("%s runs source verification %d times, want before and after copy", script, got)
 		}
+		for _, flag := range []string{"-trimpath", "-buildvcs=false", "-ldflags=-buildid="} {
+			if !strings.Contains(scriptText, flag) {
+				t.Errorf("%s is missing reproducible Go build flag %q", script, flag)
+			}
+		}
 		if !strings.Contains(scriptText, commit) {
 			t.Errorf("%s does not verify manifest commit %s", script, commit)
 		}
