@@ -89,6 +89,120 @@ func TestPinnedSourceRejectsIgnoredFiles(t *testing.T) {
 	}
 }
 
+func TestPinnedSourceAcceptsCleanCheckout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("native source preflight is a POSIX shell script")
+	}
+	root, commit := initPinnedSourceRepo(t)
+	if output := runPinnedSourceVerifier(t, root, commit, nil); output != nil {
+		t.Fatalf("preflight rejected a clean pinned checkout: %s", output)
+	}
+}
+
+func TestPinnedSourceRejectsGitIndexFlags(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("native source preflight is a POSIX shell script")
+	}
+	for _, flag := range []string{"--skip-worktree", "--assume-unchanged"} {
+		t.Run(flag, func(t *testing.T) {
+			root, commit := initPinnedSourceRepo(t)
+			gitTestCommand(t, root, "update-index", flag, "tracked.go")
+			if err := os.WriteFile(filepath.Join(root, "tracked.go"), []byte("package main\nvar changed = true\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if output := runPinnedSourceVerifier(t, root, commit, nil); output == nil {
+				t.Fatal("preflight accepted modified source hidden by an index flag")
+			}
+		})
+	}
+}
+
+func TestPinnedSourceBindsGitWorktreeToCopiedDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("native source preflight is a POSIX shell script")
+	}
+	root, commit := initPinnedSourceRepo(t)
+	checkout := filepath.Join(t.TempDir(), "checkout")
+	gitTestCommand(t, filepath.Dir(root), "clone", "-q", root, checkout)
+	gitTestCommand(t, checkout, "config", "core.worktree", root)
+	if err := os.WriteFile(filepath.Join(checkout, "injected.go"), []byte("package main\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if output := runPinnedSourceVerifier(t, checkout, commit, nil); output == nil {
+		t.Fatal("preflight followed core.worktree instead of checking the copied checkout")
+	}
+}
+
+func TestPinnedSourceIgnoresInheritedGitWorktree(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("native source preflight is a POSIX shell script")
+	}
+	root, commit := initPinnedSourceRepo(t)
+	other := filepath.Join(t.TempDir(), "other")
+	gitTestCommand(t, filepath.Dir(root), "clone", "-q", root, other)
+	if err := os.WriteFile(filepath.Join(root, "injected.go"), []byte("package main\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	env := []string{"GIT_DIR=" + filepath.Join(other, ".git"), "GIT_WORK_TREE=" + other}
+	if output := runPinnedSourceVerifier(t, root, commit, env); output == nil {
+		t.Fatal("preflight followed inherited Git environment instead of checking the source directory")
+	}
+}
+
+func TestPinnedSourceRejectsConfiguredGitFilters(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("native source preflight is a POSIX shell script")
+	}
+	root, commit := initPinnedSourceRepo(t)
+	gitTestCommand(t, root, "config", "filter.synthetic.clean", "cat")
+	if output := runPinnedSourceVerifier(t, root, commit, nil); output == nil {
+		t.Fatal("preflight accepted a checkout with an unpinned Git filter")
+	}
+}
+
+func initPinnedSourceRepo(t *testing.T) (string, string) {
+	t.Helper()
+	root := t.TempDir()
+	gitTestCommand(t, root, "init", "-q")
+	gitTestCommand(t, root, "config", "user.name", "runtime-test")
+	gitTestCommand(t, root, "config", "user.email", "runtime-test@example.invalid")
+	if err := os.WriteFile(filepath.Join(root, "tracked.go"), []byte("package main\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gitTestCommand(t, root, "add", "tracked.go")
+	gitTestCommand(t, root, "commit", "-m", "test pinned source")
+	return root, gitTestCommand(t, root, "rev-parse", "HEAD")
+}
+
+func gitTestCommand(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, output)
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func runPinnedSourceVerifier(t *testing.T, root, commit string, gitEnv []string) []byte {
+	t.Helper()
+	script := filepath.Join("..", "..", "scripts", "verify-pinned-source.sh")
+	cmd := exec.Command(script, root, commit)
+	if gitEnv != nil {
+		for _, entry := range os.Environ() {
+			if !strings.HasPrefix(entry, "GIT_") {
+				cmd.Env = append(cmd.Env, entry)
+			}
+		}
+		cmd.Env = append(cmd.Env, gitEnv...)
+	}
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	return output
+}
+
 func FuzzParseManifest(f *testing.F) {
 	f.Add([]byte("version: 1\nplatforms: [linux/arm64]\n"))
 	f.Add([]byte("components: ["))
