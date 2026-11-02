@@ -77,5 +77,7 @@ The containerd process must find the patched shim on PATH before the stock
 `containerd-shim-nerdbox-v1`; Klorq does not modify an existing containerd
 installation. `scripts/build-nerdbox-shim.sh` builds and signs it.
 
-The runtime adapter must consume these artifacts from explicit paths; it must
-not download `@latest` components during a reproducible build.
+Both native build scripts verify the source checkout's exact manifest commit
+and reject dirty or untracked source trees before applying patches. The runtime
+adapter must consume these artifacts from explicit paths; it must not download
+`@latest` components during a reproducible build.

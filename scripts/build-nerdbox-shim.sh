@@ -7,6 +7,7 @@ set -eu
 : "${NERDBOX_SRC:?set NERDBOX_SRC to an unpacked nerdbox v0.2.5 tree}"
 : "${OUT:?set OUT to the shim output path}"
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+"$ROOT/scripts/verify-pinned-source.sh" "$NERDBOX_SRC" 28c86e8e16c62a08079531ebe99e24a7bdad3d62
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/klorq-nerdbox-build.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT INT TERM
 cp -R "$NERDBOX_SRC" "$WORK/src"

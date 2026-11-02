@@ -3,6 +3,7 @@ package manifest
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -14,6 +15,34 @@ func TestRepositoryManifest(t *testing.T) {
 	}
 	if err := m.Verify(root); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestNativeBuildScriptsUseManifestCommits(t *testing.T) {
+	root := filepath.Join("..", "..")
+	manifest, err := Load(filepath.Join(root, "build", "manifest.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for script, component := range map[string]string{
+		"scripts/build-nerdbox-shim.sh": "nerdbox",
+		"scripts/build-gvproxy.sh":      "gvisor-tap-vsock",
+	} {
+		commit := manifest.Components[component].Commit
+		if commit == "" {
+			t.Fatalf("manifest component %q has no commit", component)
+		}
+		data, err := os.ReadFile(filepath.Join(root, script))
+		if err != nil {
+			t.Fatal(err)
+		}
+		scriptText := string(data)
+		if !strings.Contains(scriptText, "verify-pinned-source.sh") {
+			t.Errorf("%s does not verify its source checkout", script)
+		}
+		if !strings.Contains(scriptText, commit) {
+			t.Errorf("%s does not verify manifest commit %s", script, commit)
+		}
 	}
 }
 
