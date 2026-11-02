@@ -37,8 +37,8 @@ func TestNativeBuildScriptsUseManifestCommits(t *testing.T) {
 			t.Fatal(err)
 		}
 		scriptText := string(data)
-		if !strings.Contains(scriptText, "verify-pinned-source.sh") {
-			t.Errorf("%s does not verify its source checkout", script)
+		if got := strings.Count(scriptText, "verify-pinned-source.sh"); got != 2 {
+			t.Errorf("%s runs source verification %d times, want before and after copy", script, got)
 		}
 		if !strings.Contains(scriptText, commit) {
 			t.Errorf("%s does not verify manifest commit %s", script, commit)

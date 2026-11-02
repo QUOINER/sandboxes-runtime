@@ -12,6 +12,7 @@ WORK=$(mktemp -d "${TMPDIR:-/tmp}/klorq-nerdbox-build.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT INT TERM
 cp -R "$NERDBOX_SRC" "$WORK/src"
 chmod -R u+w "$WORK/src"
+"$ROOT/scripts/verify-pinned-source.sh" "$WORK/src" 28c86e8e16c62a08079531ebe99e24a7bdad3d62
 cd "$WORK/src"
 git apply "$ROOT/build/patches/nerdbox-gpt-threshold.patch"
 git apply "$ROOT/build/patches/nerdbox-proxy-channel.patch"
