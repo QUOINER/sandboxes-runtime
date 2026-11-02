@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -48,6 +49,39 @@ func TestNativeBuildScriptsUseManifestCommits(t *testing.T) {
 		if !strings.Contains(scriptText, commit) {
 			t.Errorf("%s does not verify manifest commit %s", script, commit)
 		}
+	}
+}
+
+func TestPinnedSourceRejectsIgnoredFiles(t *testing.T) {
+	root := t.TempDir()
+	runGit := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, output)
+		}
+		return strings.TrimSpace(string(output))
+	}
+	runGit("init", "-q")
+	runGit("config", "user.name", "runtime-test")
+	runGit("config", "user.email", "runtime-test@example.invalid")
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("generated.go\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "tracked.txt"), []byte("pinned source\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runGit("add", ".gitignore", "tracked.txt")
+	runGit("commit", "-m", "test pinned source")
+	commit := runGit("rev-parse", "HEAD")
+	if err := os.WriteFile(filepath.Join(root, "generated.go"), []byte("package injected\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join("..", "..", "scripts", "verify-pinned-source.sh")
+	cmd := exec.Command(script, root, commit)
+	if output, err := cmd.CombinedOutput(); err == nil {
+		t.Fatalf("preflight accepted an ignored source file: %s", output)
 	}
 }
 

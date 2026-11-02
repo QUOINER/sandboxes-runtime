@@ -28,7 +28,7 @@ if [ "$source_commit" != "$pinned_commit" ]; then
   echo "source commit mismatch: got $source_commit, want $pinned_commit" >&2
   exit 1
 fi
-if ! source_changes=$(git -C "$source_dir" status --porcelain --untracked-files=all); then
+if ! source_changes=$(git -C "$source_dir" status --porcelain --untracked-files=all --ignored=matching); then
   echo "cannot inspect source checkout status" >&2
   exit 1
 fi
