@@ -160,6 +160,31 @@ func TestPinnedSourceRejectsConfiguredGitFilters(t *testing.T) {
 	}
 }
 
+func TestPinnedSourceRejectsIgnoredSubmoduleChanges(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("native source preflight is a POSIX shell script")
+	}
+	root, submoduleCommit := initPinnedSourceRepo(t)
+	gitmodules := "[submodule \"synthetic\"]\n\tpath = injected\n\turl = synthetic://local\n\tignore = all\n"
+	if err := os.WriteFile(filepath.Join(root, ".gitmodules"), []byte(gitmodules), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gitTestCommand(t, root, "add", ".gitmodules")
+	gitTestCommand(t, root, "update-index", "--add", "--cacheinfo", "160000,"+submoduleCommit+",injected")
+	gitTestCommand(t, root, "commit", "-m", "add ignored synthetic submodule")
+	commit := gitTestCommand(t, root, "rev-parse", "HEAD")
+	submodule := filepath.Join(root, "injected")
+	if err := os.Mkdir(submodule, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(submodule, "injected.go"), []byte("package main\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if output := runPinnedSourceVerifier(t, root, commit, nil); output == nil {
+		t.Fatal("preflight accepted source hidden by a submodule ignore rule")
+	}
+}
+
 func initPinnedSourceRepo(t *testing.T) (string, string) {
 	t.Helper()
 	root := t.TempDir()

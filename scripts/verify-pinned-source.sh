@@ -72,6 +72,27 @@ fi
 if printf '%s\n' "$index_entries" | grep -Eq '^[a-zS] '; then
   echo "source index has assume-unchanged or skip-worktree entries" >&2
   exit 1
+else
+  grep_status=$?
+  if [ "$grep_status" -ne 1 ]; then
+    echo "cannot inspect source index flags" >&2
+    exit 1
+  fi
+fi
+
+if ! staged_entries=$(git_source ls-files --stage); then
+  echo "cannot inspect source index entries" >&2
+  exit 1
+fi
+if printf '%s\n' "$staged_entries" | grep -Eq '^160000 '; then
+  echo "source checkout must not contain submodules" >&2
+  exit 1
+else
+  grep_status=$?
+  if [ "$grep_status" -ne 1 ]; then
+    echo "cannot inspect source index entries" >&2
+    exit 1
+  fi
 fi
 
 if ! source_changes=$(git_source status --porcelain --untracked-files=all --ignored=matching); then
