@@ -1,4 +1,4 @@
-module github.com/KLORQ/sandboxes-runtime
+module github.com/QUOINER/sandboxes-runtime
 
 go 1.27
 

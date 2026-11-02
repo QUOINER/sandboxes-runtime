@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	runtime "github.com/KLORQ/sandboxes-runtime"
+	runtime "github.com/QUOINER/sandboxes-runtime"
 )
 
 type fakeRunner struct {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	runtime "github.com/KLORQ/sandboxes-runtime"
+	runtime "github.com/QUOINER/sandboxes-runtime"
 )
 
 // BackendOptions configures the runtime backend.
