@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	runtime "github.com/QUOINER/sandboxes-runtime"
+	runtime "github.com/quoiner/sandboxes-runtime"
 )
 
 func TestExecPassesArgumentsWithoutShell(t *testing.T) {

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	runtime "github.com/QUOINER/sandboxes-runtime"
+	runtime "github.com/quoiner/sandboxes-runtime"
 )
 
 // Exec runs a non-interactive command in an existing VM. It does not use a

@@ -1,4 +1,4 @@
-module github.com/QUOINER/sandboxes-runtime
+module github.com/quoiner/sandboxes-runtime
 
 go 1.27
 

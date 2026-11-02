@@ -18,7 +18,7 @@ import (
 	"github.com/containerd/containerd/v2/pkg/cio"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 
-	runtime "github.com/QUOINER/sandboxes-runtime"
+	runtime "github.com/quoiner/sandboxes-runtime"
 )
 
 // ExecCancelable uses the native client only with cancellation-aware sinks.
