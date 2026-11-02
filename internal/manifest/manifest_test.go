@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -53,6 +54,9 @@ func TestNativeBuildScriptsUseManifestCommits(t *testing.T) {
 }
 
 func TestPinnedSourceRejectsIgnoredFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("native source preflight is a POSIX shell script")
+	}
 	root := t.TempDir()
 	runGit := func(args ...string) string {
 		t.Helper()
