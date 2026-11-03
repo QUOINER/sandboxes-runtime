@@ -500,6 +500,9 @@ func TestCreateMountsAndStartsProxyHelper(t *testing.T) {
 			t.Fatalf("missing %q in runtime call: %s", want, calls)
 		}
 	}
+	if strings.Contains(calls, "/bin/sh") {
+		t.Fatalf("proxy helper unexpectedly depends on a shell: %s", calls)
+	}
 }
 
 func TestProxyHelperRejectsShellMetacharactersInHost(t *testing.T) {

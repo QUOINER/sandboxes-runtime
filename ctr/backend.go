@@ -144,9 +144,15 @@ func applyProxyHelper(spec *RunSpec, cfg *runtime.Config) error {
 		Destination: "/tmp/rheic-proxy-helper",
 		ReadOnly:    true,
 	})
+	// Run the trusted static helper directly as the container process. This
+	// keeps proxy-enabled workload images independent of /bin/sh and avoids
+	// interpolating configuration into a shell program.
 	spec.Args = []string{
-		"/bin/sh", "-c",
-		fmt.Sprintf("set -eu; /tmp/rheic-proxy-helper -listen 127.0.0.1:%d -cid 2 -port %d -service-host %s & helper=$!; trap 'kill \"$helper\" 2>/dev/null || true; wait \"$helper\" 2>/dev/null || true' TERM INT; while kill -0 \"$helper\" 2>/dev/null; do sleep 1; done; wait \"$helper\"", cfg.ProxyGuestPort, cfg.ProxyPort, cfg.ProxyServiceHost),
+		"/tmp/rheic-proxy-helper",
+		"-listen", fmt.Sprintf("127.0.0.1:%d", cfg.ProxyGuestPort),
+		"-cid", "2",
+		"-port", fmt.Sprint(cfg.ProxyPort),
+		"-service-host", cfg.ProxyServiceHost,
 	}
 	return nil
 }
