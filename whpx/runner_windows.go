@@ -51,6 +51,13 @@ type StartConfig struct {
 	Boot Config
 }
 
+type qemuStartParameters struct {
+	commandLine []uint16
+	application *uint16
+	workingDir  *uint16
+	environment []uint16
+}
+
 // NewRunner creates a QEMU process owner for the configured executable.
 func NewRunner(qemuPath string) (*Runner, error) {
 	if !filepath.IsAbs(qemuPath) {
@@ -90,69 +97,21 @@ func (r *Runner) Start(ctx context.Context, id string, cfg StartConfig) error {
 	if err != nil {
 		return err
 	}
-	commandLine := windows.ComposeCommandLine(append([]string{r.qemuPath}, args...))
-	commandLineUTF16, err := windows.UTF16FromString(commandLine)
-	if err != nil {
-		return fmt.Errorf("encode QEMU command line: %w", err)
-	}
-	applicationName, err := windows.UTF16PtrFromString(r.qemuPath)
-	if err != nil {
-		return fmt.Errorf("encode QEMU path: %w", err)
-	}
-	currentDir, err := windows.UTF16PtrFromString(filepath.Dir(r.qemuPath))
-	if err != nil {
-		return fmt.Errorf("encode QEMU working directory: %w", err)
-	}
-	environment, err := qemuEnvironmentBlock()
+	parameters, err := prepareQEMUStart(r.qemuPath, args)
 	if err != nil {
 		return err
 	}
-
-	r.mu.Lock()
-	if r.closed {
-		r.mu.Unlock()
-		return errors.New("WHPX runner is closed")
+	current, err := r.reserveInstance(id, pipeName)
+	if err != nil {
+		return err
 	}
-	if _, exists := r.instances[id]; exists {
-		r.mu.Unlock()
-		return errors.New("WHPX instance already exists")
-	}
-	current := &instance{ready: make(chan struct{}), done: make(chan error, 1), pipeName: pipeName}
-	r.instances[id] = current
-	r.mu.Unlock()
-
-	job, err := newKillOnCloseJob()
+	job, process, err := launchQEMU(parameters)
 	if err != nil {
 		return r.failStart(id, current, err)
 	}
-	startup := windows.StartupInfo{Cb: uint32(unsafe.Sizeof(windows.StartupInfo{}))}
-	var proc windows.ProcessInformation
-	creationFlags := uint32(windows.CREATE_SUSPENDED | windows.CREATE_UNICODE_ENVIRONMENT | windows.CREATE_NO_WINDOW)
-	if err := windows.CreateProcess(applicationName, &commandLineUTF16[0], nil, nil, false,
-		creationFlags, &environment[0], currentDir, &startup, &proc); err != nil {
-		_ = windows.CloseHandle(job)
-		return r.failStart(id, current, fmt.Errorf("create suspended QEMU process: %w", err))
-	}
-	if err := windows.AssignProcessToJobObject(job, proc.Process); err != nil {
-		_ = windows.TerminateProcess(proc.Process, 1)
-		_, _ = windows.WaitForSingleObject(proc.Process, windows.INFINITE)
-		_ = windows.CloseHandle(proc.Thread)
-		_ = windows.CloseHandle(proc.Process)
-		_ = windows.CloseHandle(job)
-		return r.failStart(id, current, fmt.Errorf("assign suspended QEMU process to kill-on-close job: %w", err))
-	}
-	if _, err := windows.ResumeThread(proc.Thread); err != nil {
-		_ = windows.TerminateJobObject(job, 1)
-		_, _ = windows.WaitForSingleObject(proc.Process, windows.INFINITE)
-		_ = windows.CloseHandle(proc.Thread)
-		_ = windows.CloseHandle(proc.Process)
-		_ = windows.CloseHandle(job)
-		return r.failStart(id, current, fmt.Errorf("resume QEMU process: %w", err))
-	}
-	_ = windows.CloseHandle(proc.Thread)
 
 	r.mu.Lock()
-	current.process = proc.Process
+	current.process = process
 	current.job = job
 	close(current.ready)
 	r.mu.Unlock()
@@ -161,6 +120,81 @@ func (r *Runner) Start(ctx context.Context, id string, cfg StartConfig) error {
 		return errors.Join(err, r.Stop(context.Background(), id))
 	}
 	return nil
+}
+
+func prepareQEMUStart(qemuPath string, args []string) (qemuStartParameters, error) {
+	var parameters qemuStartParameters
+	commandLine := windows.ComposeCommandLine(append([]string{qemuPath}, args...))
+	commandLineUTF16, err := windows.UTF16FromString(commandLine)
+	if err != nil {
+		return parameters, fmt.Errorf("encode QEMU command line: %w", err)
+	}
+	applicationName, err := windows.UTF16PtrFromString(qemuPath)
+	if err != nil {
+		return parameters, fmt.Errorf("encode QEMU path: %w", err)
+	}
+	workingDir, err := windows.UTF16PtrFromString(filepath.Dir(qemuPath))
+	if err != nil {
+		return parameters, fmt.Errorf("encode QEMU working directory: %w", err)
+	}
+	environment, err := qemuEnvironmentBlock()
+	if err != nil {
+		return parameters, err
+	}
+	return qemuStartParameters{
+		commandLine: commandLineUTF16,
+		application: applicationName,
+		workingDir:  workingDir,
+		environment: environment,
+	}, nil
+}
+
+func (r *Runner) reserveInstance(id, pipeName string) (*instance, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return nil, errors.New("WHPX runner is closed")
+	}
+	if _, exists := r.instances[id]; exists {
+		return nil, errors.New("WHPX instance already exists")
+	}
+	current := &instance{ready: make(chan struct{}), done: make(chan error, 1), pipeName: pipeName}
+	r.instances[id] = current
+	return current, nil
+}
+
+func launchQEMU(parameters qemuStartParameters) (windows.Handle, windows.Handle, error) {
+	job, err := newKillOnCloseJob()
+	if err != nil {
+		return 0, 0, err
+	}
+	startup := windows.StartupInfo{Cb: uint32(unsafe.Sizeof(windows.StartupInfo{}))}
+	var process windows.ProcessInformation
+	creationFlags := uint32(windows.CREATE_SUSPENDED | windows.CREATE_UNICODE_ENVIRONMENT | windows.CREATE_NO_WINDOW)
+	if err := windows.CreateProcess(parameters.application, &parameters.commandLine[0], nil, nil, false,
+		creationFlags, &parameters.environment[0], parameters.workingDir, &startup, &process); err != nil {
+		_ = windows.CloseHandle(job)
+		return 0, 0, fmt.Errorf("create suspended QEMU process: %w", err)
+	}
+	if err := windows.AssignProcessToJobObject(job, process.Process); err != nil {
+		cleanupSuspendedProcess(job, process)
+		return 0, 0, fmt.Errorf("assign suspended QEMU process to kill-on-close job: %w", err)
+	}
+	if _, err := windows.ResumeThread(process.Thread); err != nil {
+		_ = windows.TerminateJobObject(job, 1)
+		cleanupSuspendedProcess(job, process)
+		return 0, 0, fmt.Errorf("resume QEMU process: %w", err)
+	}
+	_ = windows.CloseHandle(process.Thread)
+	return job, process.Process, nil
+}
+
+func cleanupSuspendedProcess(job windows.Handle, process windows.ProcessInformation) {
+	_ = windows.TerminateProcess(process.Process, 1)
+	_, _ = windows.WaitForSingleObject(process.Process, windows.INFINITE)
+	_ = windows.CloseHandle(process.Thread)
+	_ = windows.CloseHandle(process.Process)
+	_ = windows.CloseHandle(job)
 }
 
 // ConnectGuest opens the QEMU virtio-serial named pipe and requires the
@@ -189,33 +223,9 @@ func (r *Runner) ConnectGuest(ctx context.Context, id string) (net.Conn, error) 
 	if connected {
 		return nil, errors.New("WHPX guest transport is already connected")
 	}
-	pipePath := `\\.\pipe\` + current.pipeName
-	var file *os.File
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		handle, err := windows.CreateFile(windows.StringToUTF16Ptr(pipePath),
-			windows.GENERIC_READ|windows.GENERIC_WRITE|windows.READ_CONTROL, 0, nil, windows.OPEN_EXISTING,
-			windows.FILE_ATTRIBUTE_NORMAL, 0)
-		if err == nil {
-			if err := verifyGuestPipeACL(handle); err != nil {
-				_ = windows.CloseHandle(handle)
-				return nil, fmt.Errorf("WHPX guest pipe security check failed: %w", err)
-			}
-			file = os.NewFile(uintptr(handle), pipePath)
-			break
-		}
-		if !errors.Is(err, windows.ERROR_FILE_NOT_FOUND) && !errors.Is(err, windows.ERROR_PIPE_BUSY) {
-			return nil, fmt.Errorf("connect to WHPX guest pipe: %w", err)
-		}
-		select {
-		case <-current.done:
-			return nil, errors.New("QEMU exited before the guest transport became ready")
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(50 * time.Millisecond):
-		}
+	file, err := connectGuestPipe(ctx, current)
+	if err != nil {
+		return nil, err
 	}
 	host, bridge := net.Pipe()
 	conn := &guestPipeConn{Conn: host, file: file, bridge: bridge}
@@ -229,6 +239,49 @@ func (r *Runner) ConnectGuest(ctx context.Context, id string) (net.Conn, error) 
 	current.pipeMu.Unlock()
 	go conn.pump(current)
 	return conn, nil
+}
+
+func connectGuestPipe(ctx context.Context, current *instance) (*os.File, error) {
+	pipePath := `\\.\pipe\` + current.pipeName
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		file, retry, err := openGuestPipe(pipePath)
+		if err != nil {
+			return nil, err
+		}
+		if !retry {
+			return file, nil
+		}
+		select {
+		case exitErr := <-current.done:
+			if exitErr != nil {
+				return nil, fmt.Errorf("QEMU exited before the guest transport became ready: %w", exitErr)
+			}
+			return nil, errors.New("QEMU exited before the guest transport became ready")
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+}
+
+func openGuestPipe(pipePath string) (*os.File, bool, error) {
+	handle, err := windows.CreateFile(windows.StringToUTF16Ptr(pipePath),
+		windows.GENERIC_READ|windows.GENERIC_WRITE|windows.READ_CONTROL, 0, nil, windows.OPEN_EXISTING,
+		windows.FILE_ATTRIBUTE_NORMAL, 0)
+	if err != nil {
+		if errors.Is(err, windows.ERROR_FILE_NOT_FOUND) || errors.Is(err, windows.ERROR_PIPE_BUSY) {
+			return nil, true, nil
+		}
+		return nil, false, fmt.Errorf("connect to WHPX guest pipe: %w", err)
+	}
+	if err := verifyGuestPipeACL(handle); err != nil {
+		_ = windows.CloseHandle(handle)
+		return nil, false, fmt.Errorf("WHPX guest pipe security check failed: %w", err)
+	}
+	return os.NewFile(uintptr(handle), pipePath), false, nil
 }
 
 func newGuestPipeName() (string, error) {
@@ -251,6 +304,17 @@ func verifyGuestPipeACL(handle windows.Handle) error {
 	if err != nil {
 		return fmt.Errorf("read named pipe security descriptor: %w", err)
 	}
+	if err := verifyPipeOwnerAndDACL(descriptor, sid); err != nil {
+		return err
+	}
+	dacl, defaulted, err := descriptor.DACL()
+	if err != nil || defaulted || dacl == nil {
+		return errors.New("named pipe DACL must grant access only to the current user and SYSTEM")
+	}
+	return verifyGuestPipePrincipals(dacl, sid)
+}
+
+func verifyPipeOwnerAndDACL(descriptor *windows.SECURITY_DESCRIPTOR, sid string) error {
 	owner, _, err := descriptor.Owner()
 	if err != nil || owner.String() != sid {
 		return errors.New("named pipe owner is not the current user")
@@ -259,18 +323,19 @@ func verifyGuestPipeACL(handle windows.Handle) error {
 	if err != nil || control&windows.SE_DACL_PROTECTED == 0 {
 		return errors.New("named pipe DACL is not protected")
 	}
-	dacl, defaulted, err := descriptor.DACL()
-	if err != nil || defaulted || dacl == nil || dacl.AceCount != 2 {
+	return nil
+}
+
+func verifyGuestPipePrincipals(dacl *windows.ACL, sid string) error {
+	if dacl.AceCount != 2 {
 		return errors.New("named pipe DACL must grant access only to the current user and SYSTEM")
 	}
 	seenUser, seenSystem := false, false
 	for index := uint32(0); index < uint32(dacl.AceCount); index++ {
-		var ace *windows.ACCESS_ALLOWED_ACE
-		if err := windows.GetAce(dacl, index, &ace); err != nil || ace.Header.AceType != windows.ACCESS_ALLOWED_ACE_TYPE ||
-			ace.Header.AceFlags != 0 || ace.Mask != 0x001f01ff {
-			return errors.New("named pipe DACL contains a non-standard access rule")
+		principal, err := guestPipeACEPrincipal(dacl, index)
+		if err != nil {
+			return err
 		}
-		principal := (*windows.SID)(unsafe.Pointer(&ace.SidStart)).String()
 		switch principal {
 		case sid:
 			seenUser = true
@@ -284,6 +349,18 @@ func verifyGuestPipeACL(handle windows.Handle) error {
 		return errors.New("named pipe DACL is missing the current user or SYSTEM")
 	}
 	return nil
+}
+
+func guestPipeACEPrincipal(dacl *windows.ACL, index uint32) (string, error) {
+	var ace *windows.ACCESS_ALLOWED_ACE
+	if err := windows.GetAce(dacl, index, &ace); err != nil || ace.Header.AceType != windows.ACCESS_ALLOWED_ACE_TYPE ||
+		ace.Header.AceFlags != 0 || ace.Mask != 0x001f01ff {
+		return "", errors.New("named pipe DACL contains a non-standard access rule")
+	}
+	// ACCESS_ALLOWED_ACE stores a variable-length SID inline at SidStart; decode
+	// that field using the Win32 ACE layout returned by GetAce.
+	//nolint:gosec // The SID pointer is bounded by the validated ACCESS_ALLOWED_ACE structure.
+	return (*windows.SID)(unsafe.Pointer(&ace.SidStart)).String(), nil
 }
 
 type guestPipeConn struct {
@@ -317,11 +394,12 @@ func (c *guestPipeConn) Close() error {
 func (r *Runner) wait(id string, current *instance) {
 	waitResult, waitErr := windows.WaitForSingleObject(current.process, windows.INFINITE)
 	var exitErr error
-	if waitErr != nil {
+	switch {
+	case waitErr != nil:
 		exitErr = fmt.Errorf("wait for QEMU process: %w", waitErr)
-	} else if waitResult != windows.WAIT_OBJECT_0 {
+	case waitResult != windows.WAIT_OBJECT_0:
 		exitErr = fmt.Errorf("wait for QEMU process returned unexpected result 0x%x", waitResult)
-	} else {
+	default:
 		var code uint32
 		if err := windows.GetExitCodeProcess(current.process, &code); err != nil {
 			exitErr = fmt.Errorf("read QEMU exit status: %w", err)
@@ -437,6 +515,9 @@ func newKillOnCloseJob() (windows.Handle, error) {
 	}
 	limits := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{}
 	limits.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+	// SetInformationJobObject accepts the address and byte size of the typed
+	// extended-limit structure; x/sys/windows exposes that Win32 API directly.
+	//nolint:gosec // The pointer and exact structure size are passed to the documented Win32 API.
 	if _, err := windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation,
 		uintptr(unsafe.Pointer(&limits)), uint32(unsafe.Sizeof(limits))); err != nil {
 		_ = windows.CloseHandle(job)
@@ -461,7 +542,7 @@ func validInstanceID(id string) bool {
 func qemuEnvironmentBlock() ([]uint16, error) {
 	systemRoot, ok := os.LookupEnv("SystemRoot")
 	if !ok || systemRoot == "" {
-		return nil, errors.New("Windows SystemRoot environment is unavailable")
+		return nil, errors.New("windows SystemRoot environment is unavailable")
 	}
 	securityDescriptor, err := qemuPipeSecurityDescriptor()
 	if err != nil {
