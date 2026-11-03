@@ -83,13 +83,16 @@ type Handle struct {
 	Deny    []Rule
 }
 
-// NetworkAttachment is the host network data required by the runtime.
+// NetworkAttachment is the host network data required by the runtime. QEMUEndpoint
+// is populated only for a QEMU backend; SocketPath and Annotations belong to
+// runtimes that consume a Unix socket attachment.
 type NetworkAttachment struct {
-	SocketPath  string
-	MAC         string
-	DeviceIP    string
-	GatewayIP   string
-	Annotations []string
+	SocketPath   string
+	QEMUEndpoint string
+	MAC          string
+	DeviceIP     string
+	GatewayIP    string
+	Annotations  []string
 }
 
 // Network starts and stops the host-side gateway for a sandbox.

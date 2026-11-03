@@ -123,4 +123,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/quoiner/sandboxes-runtime
+        - github.com/lickren/sandboxes-runtime

@@ -1,2 +1,3 @@
 # Unified diff context lines begin with a space before the source indentation.
 build/patches/*.patch whitespace=-blank-at-eol,-space-before-tab
+build/patches/*.patch text eol=lf

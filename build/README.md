@@ -10,6 +10,8 @@ adapter. The manifest is authoritative; the patches are checked by the
 - nerdbox `0.2.5`, commit `28c86e8e16c62a08079531ebe99e24a7bdad3d62`
 - libkrun `1.19.6`
 - gvisor-tap-vsock commit `0b0819c174331f5b86d96db3ab7aad7dd126078e`
+- QEMU `11.1.3` for the experimental Windows WHPX backend, source SHA-512 in
+  `manifest.yaml`
 - default image `docker.io/library/alpine:3.22` at the pinned digest
 
 ## Patches
@@ -19,7 +21,8 @@ tests are recorded in the plan:
 
 - `patches/gvproxy-egress-policy-v2.patch` — default-deny egress policy,
   domain-aware DNS authorization with a bounded resolved-IP cache, revision
-  reload, audit, flow revocation, and the supervisor owner lease. The daemon
+  reload, audit, flow revocation, bearer authentication on the host services
+  API, and the supervisor owner lease. The daemon
   requires the patched `-require-owner-lease` option; older gvproxy builds are
   rejected at startup. Domain-only TCP authorization additionally requires a
   bounded TLS ClientHello with a matching SNI and DNS binding. Policy DNS A/AAAA
@@ -39,6 +42,13 @@ tests are recorded in the plan:
   8 to 128 layers so multi-layer images stay on raw virtio EROFS disks instead
   of the GPT VMDK path that libkrun 1.19.6 rejects. Build the shim with
   `scripts/build-nerdbox-shim.sh`; the hypervisor entitlement is mandatory.
+- `patches/qemu-windows-private-pipe-v1.patch` — on Windows, uses the
+  `LICKREN_PIPE_SDDL` supplied by the runtime to create QEMU's virtio-serial
+  named pipe with a protected current-user + SYSTEM DACL and rejects remote
+  pipe clients. The host validates the resulting pipe ACL before returning a
+  stream. Stock QEMU's Windows pipe backend passes a null security descriptor;
+  this runtime therefore refuses to use an unpatched binary. This patch is
+  experimental and has not been built or exercised on Windows.
 
 Nested Docker Engine remains blocked. The former nerdbox cgroup/capability
 patch was removed because it applied broad capabilities and a writable bind of
@@ -86,3 +96,12 @@ is then ad-hoc signed for local macOS execution; that signature is not a
 release signature or provenance statement. The runtime adapter must consume
 these artifacts from explicit paths; it must not download `@latest`
 components during a reproducible build.
+
+The Windows branch follows Docker's documented platform contract (Windows 11
+x64 with Windows Hypervisor Platform), while using QEMU WHPX as the open VMM.
+QEMU's Windows build must be produced from the pinned `qemu-windows` source,
+with the private-pipe patch applied, using the documented MSYS2/MinGW build
+environment. The QEMU source archive is signed upstream; verify its signature
+and the pinned SHA-512 before applying the patch. The native Windows build
+recipe and signed release artifacts are still outstanding; do not substitute
+an unpatched system QEMU binary.

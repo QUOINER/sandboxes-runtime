@@ -1,0 +1,50 @@
+diff --git a/chardev/char-pipe.c b/chardev/char-pipe.c
+--- a/chardev/char-pipe.c
++++ b/chardev/char-pipe.c
+@@ -27,6 +27,9 @@
+ #include "qemu/option.h"
+ #include "chardev/char.h"
+ 
++#ifdef _WIN32
++#include <sddl.h>
++#endif
+ #ifdef _WIN32
+ #include "chardev/char-win.h"
+ #else
+@@ -42,6 +45,9 @@ static int win_chr_pipe_init(Chardev *chr, const char *filename,
+     int ret;
+     DWORD size;
+     char *openname;
++    const char *pipe_sddl = g_getenv("LICKREN_PIPE_SDDL");
++    PSECURITY_DESCRIPTOR pipe_sd = NULL;
++    SECURITY_ATTRIBUTES pipe_sa = { sizeof(pipe_sa), NULL, FALSE };
+ 
+     s->fpipe = TRUE;
+@@ -57,9 +63,24 @@ static int win_chr_pipe_init(Chardev *chr, const char *filename,
+         goto fail;
+     }
+     openname = g_strdup_printf("\\\\.\\pipe\\%s", filename);
++    if (pipe_sddl && *pipe_sddl) {
++        if (!ConvertStringSecurityDescriptorToSecurityDescriptorA(
++                pipe_sddl, SDDL_REVISION_1, &pipe_sd, NULL)) {
++            error_setg_win32(errp, GetLastError(),
++                             "Failed to create private pipe security descriptor");
++            g_free(openname);
++            goto fail;
++        }
++        pipe_sa.lpSecurityDescriptor = pipe_sd;
++    }
+     s->file = CreateNamedPipe(openname,
+                               PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
+                               PIPE_TYPE_BYTE | PIPE_READMODE_BYTE |
+-                              PIPE_WAIT,
+-                              MAXCONNECT, NSENDBUF, NRECVBUF, NTIMEOUT, NULL);
++                              PIPE_WAIT |
++                              ((pipe_sddl && *pipe_sddl) ?
++                               PIPE_REJECT_REMOTE_CLIENTS : 0),
++                              MAXCONNECT, NSENDBUF, NRECVBUF, NTIMEOUT,
++                              (pipe_sddl && *pipe_sddl) ? &pipe_sa : NULL);
++    if (pipe_sd) {
++        LocalFree(pipe_sd);
++    }
+     g_free(openname);

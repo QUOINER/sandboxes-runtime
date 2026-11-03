@@ -3378,9 +3378,8 @@ index b2b44614..5f4ac70d 100644
 +	return err
 +}
 +
-+// UpdateEgressPolicy atomically replaces the active policy for new flows.
-+// Established flows are not terminated by this prototype; the caller must
-+// document that revocation applies to new connections only.
++// UpdateEgressPolicy atomically replaces the active policy and closes tracked
++// flows that the new policy denies.
 +func (n *VirtualNetwork) UpdateEgressPolicy(policy *types.EgressPolicy) error {
 +	return n.egressPolicy.Update(policy)
 +}
@@ -3389,5 +3388,64 @@ index b2b44614..5f4ac70d 100644
 +func (n *VirtualNetwork) EgressPolicyRevision() string {
 +	return n.egressPolicy.Revision()
  }
+
+diff --git a/pkg/virtualnetwork/mux.go b/pkg/virtualnetwork/mux.go
+index 4f0ef8ca..6b9dc381 100644
+--- a/pkg/virtualnetwork/mux.go
++++ b/pkg/virtualnetwork/mux.go
+@@ -105,5 +105,9 @@ func (n *VirtualNetwork) ServicesMux() http.Handler {
+ func (n *VirtualNetwork) ServicesMux() http.Handler {
+-	return apilog.Middleware(n.newServicesMux())
++	handler := http.Handler(n.newServicesMux())
++	if n.apiToken != "" {
++		handler = tokenauth.BearerAuthMiddleware(n.apiToken)(handler)
++	}
++	return apilog.Middleware(handler)
+ }
  
- func (n *VirtualNetwork) BytesSent() uint64 {
+ // Mux returns the full mux (services + connect) wrapped with audit logging middleware.
+
+diff --git a/pkg/virtualnetwork/services.go b/pkg/virtualnetwork/services.go
+index 3ed9a996..eed8d7a8 100644
+--- a/pkg/virtualnetwork/services.go
++++ b/pkg/virtualnetwork/services.go
+@@ -3,5 +3,7 @@ package virtualnetwork
+ import (
+ 	"context"
++	"encoding/json"
++	"io"
+ 	"net"
+ 	"net/http"
+ 	"sync"
+@@ -69,5 +71,31 @@ func addServices(configuration *types.Configuration, s *stack.Stack, ipPool *tap
+ 	mux.Handle("/forwarder/", http.StripPrefix("/forwarder", portsForwarder.Mux()))
+ 	mux.Handle("/dhcp/", http.StripPrefix("/dhcp", dhcpMux))
+ 	mux.Handle("/dns/", http.StripPrefix("/dns", dnsMux))
++	mux.HandleFunc("/egress-policy/reload", func(w http.ResponseWriter, r *http.Request) {
++		if r.Method != http.MethodPost {
++			w.WriteHeader(http.StatusMethodNotAllowed)
++			return
++		}
++		var next types.EgressPolicy
++		decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
++		decoder.DisallowUnknownFields()
++		if err := decoder.Decode(&next); err != nil {
++			http.Error(w, "invalid egress policy", http.StatusBadRequest)
++			return
++		}
++		var trailing any
++		if err := decoder.Decode(&trailing); err != io.EOF {
++			http.Error(w, "invalid egress policy document", http.StatusBadRequest)
++			return
++		}
++		if err := egressPolicy.Update(&next); err != nil {
++			http.Error(w, "egress policy update rejected", http.StatusUnprocessableEntity)
++			return
++		}
++		w.Header().Set("Content-Type", "application/json")
++		_ = json.NewEncoder(w).Encode(struct {
++			Revision string `json:"revision"`
++		}{Revision: egressPolicy.Revision()})
++	})
+ 	return mux, nil
+ }

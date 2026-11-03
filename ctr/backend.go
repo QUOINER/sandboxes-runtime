@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	runtime "github.com/quoiner/sandboxes-runtime"
+	runtime "github.com/lickren/sandboxes-runtime"
 )
 
 // BackendOptions configures the runtime backend.

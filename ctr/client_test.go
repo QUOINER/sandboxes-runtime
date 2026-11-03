@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	runtime "github.com/quoiner/sandboxes-runtime"
+	runtime "github.com/lickren/sandboxes-runtime"
 )
 
 type fakeRunner struct {
@@ -465,11 +465,13 @@ func TestCreatePassesProxyChannelAnnotation(t *testing.T) {
 		t.Fatal(err)
 	}
 	backend.client.runner = runner
-	if _, err := backend.Create(context.Background(), runtime.Config{Name: "dev", Image: "img", ProxyPort: 1027, ProxySocket: "/run/klorq/dev.proxy.sock"}); err != nil {
+	proxySocket := filepath.Join(os.TempDir(), "dev.proxy.sock")
+	if _, err := backend.Create(context.Background(), runtime.Config{Name: "dev", Image: "img", ProxyPort: 1027, ProxySocket: proxySocket}); err != nil {
 		t.Fatal(err)
 	}
 	calls := fmt.Sprint(runner.calls)
-	if !strings.Contains(calls, "io.klorq.proxy=port=1027,socket=/run/klorq/dev.proxy.sock") {
+	wantAnnotation := fmt.Sprintf("io.klorq.proxy=port=1027,socket=%s", proxySocket)
+	if !strings.Contains(calls, wantAnnotation) {
 		t.Fatalf("proxy annotation missing: %s", calls)
 	}
 }
@@ -485,7 +487,7 @@ func TestCreateMountsAndStartsProxyHelper(t *testing.T) {
 	if err := os.WriteFile(helper, []byte("synthetic helper"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	cfg := runtime.Config{Name: "dev", Image: "img", ProxyPort: 1027, ProxySocket: "/tmp/kp-12345678/proxy.sock"}
+	cfg := runtime.Config{Name: "dev", Image: "img", ProxyPort: 1027, ProxySocket: filepath.Join(os.TempDir(), "dev.proxy.sock")}
 	if _, err := backend.CreateWithProxy(context.Background(), &cfg, helper, 3128, "api.openai.com"); err != nil {
 		t.Fatal(err)
 	}

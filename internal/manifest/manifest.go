@@ -27,6 +27,7 @@ type Component struct {
 	Version string `yaml:"version,omitempty"`
 	Commit  string `yaml:"commit,omitempty"`
 	Source  string `yaml:"source"`
+	SHA512  string `yaml:"sha512,omitempty"`
 }
 
 // Patch is a checked-in patch against an open-source component.
@@ -78,6 +79,17 @@ func (m Manifest) verifyComponents() error {
 		c, ok := m.Components[name]
 		if !ok || c.Source == "" || (c.Version == "" && c.Commit == "") {
 			return fmt.Errorf("component %s is not pinned", name)
+		}
+	}
+	for name, component := range m.Components {
+		if component.SHA512 == "" {
+			continue
+		}
+		if len(component.SHA512) != 128 {
+			return fmt.Errorf("component %s has invalid SHA-512 pin", name)
+		}
+		if _, err := hex.DecodeString(component.SHA512); err != nil {
+			return fmt.Errorf("component %s has invalid SHA-512 pin: %w", name, err)
 		}
 	}
 	return nil
