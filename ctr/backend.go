@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	runtime "github.com/lickren/sandboxes-runtime"
+	runtime "github.com/rheic/sandboxes-runtime"
 )
 
 // BackendOptions configures the runtime backend.
@@ -141,12 +141,12 @@ func applyProxyHelper(spec *RunSpec, cfg *runtime.Config) error {
 	}
 	spec.Mounts = append(spec.Mounts, Mount{
 		Source:      cfg.ProxyHelperPath,
-		Destination: "/tmp/lickren-proxy-helper",
+		Destination: "/tmp/rheic-proxy-helper",
 		ReadOnly:    true,
 	})
 	spec.Args = []string{
 		"/bin/sh", "-c",
-		fmt.Sprintf("set -eu; /tmp/lickren-proxy-helper -listen 127.0.0.1:%d -cid 2 -port %d -service-host %s & helper=$!; trap 'kill \"$helper\" 2>/dev/null || true; wait \"$helper\" 2>/dev/null || true' TERM INT; while kill -0 \"$helper\" 2>/dev/null; do sleep 1; done; wait \"$helper\"", cfg.ProxyGuestPort, cfg.ProxyPort, cfg.ProxyServiceHost),
+		fmt.Sprintf("set -eu; /tmp/rheic-proxy-helper -listen 127.0.0.1:%d -cid 2 -port %d -service-host %s & helper=$!; trap 'kill \"$helper\" 2>/dev/null || true; wait \"$helper\" 2>/dev/null || true' TERM INT; while kill -0 \"$helper\" 2>/dev/null; do sleep 1; done; wait \"$helper\"", cfg.ProxyGuestPort, cfg.ProxyPort, cfg.ProxyServiceHost),
 	}
 	return nil
 }
@@ -203,7 +203,7 @@ func proxyChannelAnnotation(cfg *runtime.Config) (string, error) {
 	if cfg.ProxyPort < 1027 || cfg.ProxyPort > 65535 || !filepath.IsAbs(cfg.ProxySocket) || len(cfg.ProxySocket) >= 104 || strings.ContainsAny(cfg.ProxySocket, ",=\x00\r\n") {
 		return "", errors.New("proxy channel requires a port >= 1027 and a socket path")
 	}
-	return fmt.Sprintf("io.lickren.proxy=port=%d,socket=%s", cfg.ProxyPort, cfg.ProxySocket), nil
+	return fmt.Sprintf("io.rheic.proxy=port=%d,socket=%s", cfg.ProxyPort, cfg.ProxySocket), nil
 }
 
 // Handle returns the runtime handle for a sandbox name.
@@ -214,13 +214,13 @@ func (b *Backend) Handle(name string) runtime.Handle {
 // Start starts a stopped task.
 func (b *Backend) Start(ctx context.Context, h runtime.Handle) error {
 	if b.network != nil {
-		if _, err := b.network.Start(ctx, strings.TrimPrefix(h.ID, "lickren-"), h.Ports, h.Allow, h.Deny); err != nil {
+		if _, err := b.network.Start(ctx, strings.TrimPrefix(h.ID, "rheic-"), h.Ports, h.Allow, h.Deny); err != nil {
 			return err
 		}
 	}
 	if err := b.client.StartTask(ctx, h.ID, h.FIFODir); err != nil {
 		if b.network != nil {
-			return errors.Join(err, b.stopNetwork(ctx, strings.TrimPrefix(h.ID, "lickren-")))
+			return errors.Join(err, b.stopNetwork(ctx, strings.TrimPrefix(h.ID, "rheic-")))
 		}
 		return err
 	}
@@ -241,14 +241,14 @@ func (b *Backend) UpdatePolicy(ctx context.Context, h runtime.Handle, allow, den
 	if b.network == nil {
 		return errors.New("runtime has no network policy engine")
 	}
-	return b.network.UpdatePolicy(ctx, strings.TrimPrefix(h.ID, "lickren-"), h.Ports, allow, deny, revision)
+	return b.network.UpdatePolicy(ctx, strings.TrimPrefix(h.ID, "rheic-"), h.Ports, allow, deny, revision)
 }
 
 func (b *Backend) UpdatePorts(ctx context.Context, h runtime.Handle, ports []runtime.Port) error {
 	if b.network == nil {
 		return errors.New("runtime has no network port engine")
 	}
-	return b.network.UpdatePorts(ctx, strings.TrimPrefix(h.ID, "lickren-"), ports)
+	return b.network.UpdatePorts(ctx, strings.TrimPrefix(h.ID, "rheic-"), ports)
 }
 
 func (b *Backend) Stop(ctx context.Context, h runtime.Handle, grace time.Duration) error {
@@ -257,7 +257,7 @@ func (b *Backend) Stop(ctx context.Context, h runtime.Handle, grace time.Duratio
 	}
 	err := b.client.StopTask(ctx, h.ID, grace)
 	if b.network != nil {
-		err = errors.Join(err, b.stopNetwork(ctx, strings.TrimPrefix(h.ID, "lickren-")))
+		err = errors.Join(err, b.stopNetwork(ctx, strings.TrimPrefix(h.ID, "rheic-")))
 	}
 	return err
 }
@@ -276,10 +276,10 @@ func (b *Backend) Delete(ctx context.Context, h runtime.Handle) error {
 		}
 	}
 	if b.network != nil {
-		err = errors.Join(err, b.stopNetwork(ctx, strings.TrimPrefix(h.ID, "lickren-")))
+		err = errors.Join(err, b.stopNetwork(ctx, strings.TrimPrefix(h.ID, "rheic-")))
 	}
 	return err
 }
 
 // ContainerID returns the containerd container id for a sandbox name.
-func ContainerID(name string) string { return "lickren-" + name }
+func ContainerID(name string) string { return "rheic-" + name }

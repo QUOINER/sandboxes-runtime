@@ -43,7 +43,7 @@ tests are recorded in the plan:
   of the GPT VMDK path that libkrun 1.19.6 rejects. Build the shim with
   `scripts/build-nerdbox-shim.sh`; the hypervisor entitlement is mandatory.
 - `patches/qemu-windows-private-pipe-v1.patch` — on Windows, uses the
-  `LICKREN_PIPE_SDDL` supplied by the runtime to create QEMU's virtio-serial
+  `RHEIC_PIPE_SDDL` supplied by the runtime to create QEMU's virtio-serial
   named pipe with a protected current-user + SYSTEM DACL and rejects remote
   pipe clients. The host validates the resulting pipe ACL before returning a
   stream. Stock QEMU's Windows pipe backend passes a null security descriptor;
@@ -84,7 +84,7 @@ go build -o gvproxy-policy-v2 ./cmd/gvproxy
 or use `scripts/build-gvproxy.sh` with `GVPROXY_SRC` and `OUT`.
 
 The containerd process must find the patched shim on PATH before the stock
-`containerd-shim-nerdbox-v1`; Lickren does not modify an existing containerd
+`containerd-shim-nerdbox-v1`; Rheic does not modify an existing containerd
 installation. `scripts/build-nerdbox-shim.sh` builds and signs it.
 
 Both native build scripts verify the source checkout's exact manifest commit

@@ -10,17 +10,17 @@ import (
 	"testing"
 	"time"
 
-	runtime "github.com/lickren/sandboxes-runtime"
+	runtime "github.com/rheic/sandboxes-runtime"
 )
 
 // TestLiveExec requires an explicitly supplied, already running, owned VM.
 // It neither creates nor removes containerd resources.
 func TestLiveExec(t *testing.T) {
-	socket := os.Getenv("LICKREN_TEST_CTR_SOCKET")
-	id := os.Getenv("LICKREN_TEST_OWNED_CONTAINER")
-	fifo := os.Getenv("LICKREN_TEST_FIFO_DIR")
+	socket := os.Getenv("RHEIC_TEST_CTR_SOCKET")
+	id := os.Getenv("RHEIC_TEST_OWNED_CONTAINER")
+	fifo := os.Getenv("RHEIC_TEST_FIFO_DIR")
 	if socket == "" || id == "" || fifo == "" {
-		t.Skip("set LICKREN_TEST_CTR_SOCKET, LICKREN_TEST_OWNED_CONTAINER and LICKREN_TEST_FIFO_DIR for an owned VM")
+		t.Skip("set RHEIC_TEST_CTR_SOCKET, RHEIC_TEST_OWNED_CONTAINER and RHEIC_TEST_FIFO_DIR for an owned VM")
 	}
 	backend, err := NewBackend(Config{Socket: socket}, BackendOptions{})
 	if err != nil {
@@ -45,11 +45,11 @@ func TestLiveExec(t *testing.T) {
 }
 
 func TestLiveNativeExecExitStatus(t *testing.T) {
-	socket := os.Getenv("LICKREN_TEST_CTR_SOCKET")
-	id := os.Getenv("LICKREN_TEST_OWNED_CONTAINER")
-	fifo := os.Getenv("LICKREN_TEST_FIFO_DIR")
+	socket := os.Getenv("RHEIC_TEST_CTR_SOCKET")
+	id := os.Getenv("RHEIC_TEST_OWNED_CONTAINER")
+	fifo := os.Getenv("RHEIC_TEST_FIFO_DIR")
 	if socket == "" || id == "" || fifo == "" {
-		t.Skip("set LICKREN_TEST_CTR_SOCKET, LICKREN_TEST_OWNED_CONTAINER and LICKREN_TEST_FIFO_DIR for an owned VM")
+		t.Skip("set RHEIC_TEST_CTR_SOCKET, RHEIC_TEST_OWNED_CONTAINER and RHEIC_TEST_FIFO_DIR for an owned VM")
 	}
 	backend, err := NewBackend(Config{Socket: socket}, BackendOptions{})
 	if err != nil {
@@ -87,11 +87,11 @@ func TestLiveNativeExecCancellationStopsGuest(t *testing.T) {
 
 func liveExecCancellationStopsGuest(t *testing.T, native bool) {
 	t.Helper()
-	socket := os.Getenv("LICKREN_TEST_CTR_SOCKET")
-	id := os.Getenv("LICKREN_TEST_OWNED_CONTAINER")
-	fifo := os.Getenv("LICKREN_TEST_FIFO_DIR")
+	socket := os.Getenv("RHEIC_TEST_CTR_SOCKET")
+	id := os.Getenv("RHEIC_TEST_OWNED_CONTAINER")
+	fifo := os.Getenv("RHEIC_TEST_FIFO_DIR")
 	if socket == "" || id == "" || fifo == "" {
-		t.Skip("set LICKREN_TEST_CTR_SOCKET, LICKREN_TEST_OWNED_CONTAINER and LICKREN_TEST_FIFO_DIR for an owned VM")
+		t.Skip("set RHEIC_TEST_CTR_SOCKET, RHEIC_TEST_OWNED_CONTAINER and RHEIC_TEST_FIFO_DIR for an owned VM")
 	}
 	backend, err := NewBackend(Config{Socket: socket}, BackendOptions{})
 	if err != nil {
@@ -104,7 +104,7 @@ func liveExecCancellationStopsGuest(t *testing.T, native bool) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	guest := "/tmp/lickren-live-cancel-marker"
+	guest := "/tmp/rheic-live-cancel-marker"
 	_, err = execute(ctx, handle, runtime.ExecRequest{Argv: []string{"/bin/sh", "-c", `touch "$0" && test -e "$0" && rm "$0"`, guest}})
 	if err != nil {
 		t.Fatalf("positive control failed: %v", err)

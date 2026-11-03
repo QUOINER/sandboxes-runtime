@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	runtime "github.com/lickren/sandboxes-runtime"
+	runtime "github.com/rheic/sandboxes-runtime"
 )
 
 // Exec runs a non-interactive command in an existing VM. It does not use a
@@ -27,7 +27,7 @@ func (b *Backend) Exec(ctx context.Context, h runtime.Handle, req runtime.ExecRe
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return 0, fmt.Errorf("create exec identifier: %w", err)
 	}
-	execID := "lickren-exec-" + hex.EncodeToString(nonce[:])
+	execID := "rheic-exec-" + hex.EncodeToString(nonce[:])
 	args := []string{"--address", b.client.cfg.Socket, "--namespace", b.client.cfg.Namespace,
 		"tasks", "exec", "--exec-id", execID}
 	if h.FIFODir != "" {
@@ -42,10 +42,10 @@ func (b *Backend) Exec(ctx context.Context, h runtime.Handle, req runtime.ExecRe
 }
 
 func validExecHandle(id string) bool {
-	if !strings.HasPrefix(id, "lickren-") || len(id) <= len("lickren-") || len(id) > 69 {
+	if !strings.HasPrefix(id, "rheic-") || len(id) <= len("rheic-") || len(id) > 69 {
 		return false
 	}
-	for _, c := range id[len("lickren-"):] {
+	for _, c := range id[len("rheic-"):] {
 		if c < 'a' || c > 'z' {
 			if c < 'A' || c > 'Z' {
 				if (c < '0' || c > '9') && c != '-' && c != '_' && c != '.' {
