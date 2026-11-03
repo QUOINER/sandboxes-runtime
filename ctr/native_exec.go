@@ -101,7 +101,7 @@ func (b *Backend) execNative(ctx context.Context, h runtime.Handle, interactive 
 	stdout := trackNativeOutput(req.Stdout)
 	stderr := trackNativeOutput(req.Stderr)
 	creator, inputDone := interactiveCreator(h, interactive, stdout, stderr)
-	process, err := task.Exec(ctx, "klorq-exec-"+hex.EncodeToString(nonce[:]), spec.Process, creator)
+	process, err := task.Exec(ctx, "lickren-exec-"+hex.EncodeToString(nonce[:]), spec.Process, creator)
 	if err != nil {
 		return 0, fmt.Errorf("create guest process: %w", err)
 	}
@@ -516,7 +516,7 @@ func (b *Backend) lookupGuestGroup(ctx context.Context, h runtime.Handle, name s
 func (b *Backend) probeGuest(ctx context.Context, h runtime.Handle, script, argument string) (string, int, error) {
 	var stdout, stderr strings.Builder
 	code, err := b.ExecNative(ctx, h, runtime.ExecRequest{
-		Argv:   []string{"/bin/sh", "-c", script, "klorq-user", argument},
+		Argv:   []string{"/bin/sh", "-c", script, "lickren-user", argument},
 		Stdout: &stdout,
 		Stderr: &stderr,
 	})

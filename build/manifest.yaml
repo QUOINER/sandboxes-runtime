@@ -27,7 +27,7 @@ patches:
     status: experimental
   nerdbox-proxy-channel:
     file: patches/nerdbox-proxy-channel.patch
-    sha256: 744b94aa6f857ea644fa8150b35dcc5eae3293fc976ba19422d584757f1f7af3
+    sha256: b51484091127758f5c51630e319f675f887ac8ce792ec203d1c3276822f1476c
     status: experimental
   gvproxy-egress-policy:
     file: patches/gvproxy-egress-policy-v2.patch

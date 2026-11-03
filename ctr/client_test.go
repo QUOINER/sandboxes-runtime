@@ -36,19 +36,19 @@ func TestStartTaskHandlesExistingTask(t *testing.T) {
 				if strings.Contains(strings.Join(args, " "), "tasks ls") {
 					result := "TASK PID STATUS\n"
 					if tc.status != "" {
-						result += "klorq-dev 12 " + tc.status + "\n"
+						result += "lickren-dev 12 " + tc.status + "\n"
 					}
 					return []byte(result), nil
 				}
 				return nil, nil
 			}}
-			err := newTestClient(t, runner).StartTask(context.Background(), "klorq-dev", "/tmp/fifo")
+			err := newTestClient(t, runner).StartTask(context.Background(), "lickren-dev", "/tmp/fifo")
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			calls := fmt.Sprint(runner.calls)
-			if strings.Contains(calls, "tasks delete -f klorq-dev") != tc.wantDelete ||
-				strings.Contains(calls, "tasks start -d --fifo-dir /tmp/fifo klorq-dev") != tc.wantStart {
+			if strings.Contains(calls, "tasks delete -f lickren-dev") != tc.wantDelete ||
+				strings.Contains(calls, "tasks start -d --fifo-dir /tmp/fifo lickren-dev") != tc.wantStart {
 				t.Fatalf("unexpected calls: %s", calls)
 			}
 		})
@@ -59,11 +59,11 @@ func TestStartTaskStopsOnInspectionOrDeleteFailure(t *testing.T) {
 	for _, failDelete := range []bool{false, true} {
 		runner := &fakeRunner{fn: func(args []string) ([]byte, error) {
 			if failDelete && strings.Contains(strings.Join(args, " "), "tasks ls") {
-				return []byte("TASK PID STATUS\nklorq-dev 12 STOPPED\n"), nil
+				return []byte("TASK PID STATUS\nlickren-dev 12 STOPPED\n"), nil
 			}
 			return nil, errors.New("containerd unavailable")
 		}}
-		if err := newTestClient(t, runner).StartTask(context.Background(), "klorq-dev", ""); err == nil {
+		if err := newTestClient(t, runner).StartTask(context.Background(), "lickren-dev", ""); err == nil {
 			t.Fatal("failure was ignored")
 		}
 		if strings.Contains(fmt.Sprint(runner.calls), "tasks start") {
@@ -80,26 +80,26 @@ func TestStopTaskReportsContainerdFailures(t *testing.T) {
 		{"list", func([]string) ([]byte, error) { return nil, errors.New("containerd unavailable") }},
 		{"signal", func(args []string) ([]byte, error) {
 			if strings.Contains(strings.Join(args, " "), "tasks ls") {
-				return []byte("TASK PID STATUS\nklorq-dev 12 RUNNING\n"), nil
+				return []byte("TASK PID STATUS\nlickren-dev 12 RUNNING\n"), nil
 			}
 			return nil, errors.New("signal failed")
 		}},
 		{"delete", func(args []string) ([]byte, error) {
 			if strings.Contains(strings.Join(args, " "), "tasks ls") {
-				return []byte("TASK PID STATUS\nklorq-dev 12 STOPPED\n"), nil
+				return []byte("TASK PID STATUS\nlickren-dev 12 STOPPED\n"), nil
 			}
 			return nil, errors.New("delete failed")
 		}},
 		{"unknown state", func([]string) ([]byte, error) {
-			return []byte("TASK PID STATUS\nklorq-dev 12 PAUSED\n"), nil
+			return []byte("TASK PID STATUS\nlickren-dev 12 PAUSED\n"), nil
 		}},
 		{"malformed", func([]string) ([]byte, error) {
-			return []byte("TASK PID STATUS\nklorq-dev\n"), nil
+			return []byte("TASK PID STATUS\nlickren-dev\n"), nil
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			client := newTestClient(t, &fakeRunner{fn: test.fn})
-			if err := client.StopTask(context.Background(), "klorq-dev", time.Second); err == nil {
+			if err := client.StopTask(context.Background(), "lickren-dev", time.Second); err == nil {
 				t.Fatal("failure was reported as successful stop")
 			}
 		})
@@ -112,14 +112,14 @@ func TestStopTaskSignalsAndDeletesStoppedTask(t *testing.T) {
 		if strings.Contains(strings.Join(args, " "), "tasks ls") {
 			lists++
 			if lists == 1 {
-				return []byte("TASK PID STATUS\nklorq-dev 12 RUNNING\n"), nil
+				return []byte("TASK PID STATUS\nlickren-dev 12 RUNNING\n"), nil
 			}
-			return []byte("TASK PID STATUS\nklorq-dev 12 STOPPED\n"), nil
+			return []byte("TASK PID STATUS\nlickren-dev 12 STOPPED\n"), nil
 		}
 		return nil, nil
 	}}
 	client := newTestClient(t, runner)
-	if err := client.StopTask(context.Background(), "klorq-dev", time.Second); err != nil {
+	if err := client.StopTask(context.Background(), "lickren-dev", time.Second); err != nil {
 		t.Fatal(err)
 	}
 	calls := make([]string, 0, len(runner.calls))
@@ -127,7 +127,7 @@ func TestStopTaskSignalsAndDeletesStoppedTask(t *testing.T) {
 		calls = append(calls, strings.Join(call, " "))
 	}
 	joined := strings.Join(calls, "\n")
-	if !strings.Contains(joined, "tasks kill -s SIGTERM klorq-dev") || !strings.Contains(joined, "tasks delete -f klorq-dev") || strings.Contains(joined, "SIGKILL") {
+	if !strings.Contains(joined, "tasks kill -s SIGTERM lickren-dev") || !strings.Contains(joined, "tasks delete -f lickren-dev") || strings.Contains(joined, "SIGKILL") {
 		t.Fatalf("unexpected stop commands: %s", joined)
 	}
 }
@@ -155,7 +155,7 @@ func TestBackendDeleteAfterTaskHasStopped(t *testing.T) {
 		case strings.Contains(strings.Join(args, " "), "tasks ls"):
 			return []byte("TASK PID STATUS\n"), nil
 		case strings.Contains(strings.Join(args, " "), "containers ls"):
-			return []byte("klorq-dev\n"), nil
+			return []byte("lickren-dev\n"), nil
 		case strings.Contains(strings.Join(args, " "), "containers delete"):
 			return nil, nil
 		default:
@@ -163,7 +163,7 @@ func TestBackendDeleteAfterTaskHasStopped(t *testing.T) {
 		}
 	}}
 	backend := &Backend{client: newTestClient(t, runner)}
-	if err := backend.Delete(context.Background(), runtime.Handle{ID: "klorq-dev"}); err != nil {
+	if err := backend.Delete(context.Background(), runtime.Handle{ID: "lickren-dev"}); err != nil {
 		t.Fatal(err)
 	}
 	if len(runner.calls) != 3 {
@@ -176,7 +176,7 @@ func TestBackendDeleteFailsWhenTaskListUnavailable(t *testing.T) {
 		return nil, errors.New("containerd unavailable")
 	}}
 	backend := &Backend{client: newTestClient(t, runner)}
-	if err := backend.Delete(context.Background(), runtime.Handle{ID: "klorq-dev"}); err == nil {
+	if err := backend.Delete(context.Background(), runtime.Handle{ID: "lickren-dev"}); err == nil {
 		t.Fatal("task inspection failure ignored")
 	}
 	if len(runner.calls) != 1 {
@@ -207,7 +207,7 @@ func TestRunBuildsCommand(t *testing.T) {
 	runner := &fakeRunner{}
 	client := newTestClient(t, runner)
 	err := client.Run(context.Background(), RunSpec{
-		ContainerID: "klorq-dev",
+		ContainerID: "lickren-dev",
 		Name:        "dev",
 		Image:       "alpine:3.22",
 		CPUs:        2,
@@ -225,7 +225,7 @@ func TestRunBuildsCommand(t *testing.T) {
 	}
 	args := strings.Join(runner.calls[0], " ")
 	for _, want := range []string{
-		"ctr --address /tmp/containerd.sock --namespace klorq run --detach",
+		"ctr --address /tmp/containerd.sock --namespace lickren run --detach",
 		"--runtime io.containerd.nerdbox.v1",
 		"--snapshotter erofs",
 		"--fifo-dir /tmp/fifo",
@@ -234,7 +234,7 @@ func TestRunBuildsCommand(t *testing.T) {
 		"--cap-add CAP_SYS_ADMIN",
 		"--cap-add CAP_NET_ADMIN",
 		"--cap-add CAP_NET_RAW",
-		"alpine:3.22 klorq-dev /bin/sh -c",
+		"alpine:3.22 lickren-dev /bin/sh -c",
 	} {
 		if !strings.Contains(args, want) {
 			t.Fatalf("missing %q in %q", want, args)
@@ -298,7 +298,7 @@ func TestBackendCreate(t *testing.T) {
 	if !strings.Contains(strings.Join(runner.calls[len(runner.calls)-1], " "), "--env PARITY=1") {
 		t.Fatalf("env missing in %v", runner.calls)
 	}
-	if handle.ID != "klorq-dev" || handle.FIFODir != "/tmp/fifo" {
+	if handle.ID != "lickren-dev" || handle.FIFODir != "/tmp/fifo" {
 		t.Fatalf("unexpected handle: %+v", handle)
 	}
 }
@@ -317,7 +317,7 @@ func TestCapabilitiesFailClosed(t *testing.T) {
 func TestBackendHandle(t *testing.T) {
 	backend := &Backend{fifoDir: "/tmp/fifo"}
 	handle := backend.Handle("dev")
-	if handle.ID != "klorq-dev" || handle.FIFODir != "/tmp/fifo" {
+	if handle.ID != "lickren-dev" || handle.FIFODir != "/tmp/fifo" {
 		t.Fatalf("unexpected handle: %+v", handle)
 	}
 }
@@ -382,7 +382,7 @@ func TestStopReportsBothTaskAndNetworkFailures(t *testing.T) {
 	runner := &fakeRunner{fn: func([]string) ([]byte, error) { return nil, taskErr }}
 	network := &fakeNetwork{stopErr: networkErr}
 	backend := &Backend{client: newTestClient(t, runner), network: network}
-	err := backend.Stop(ctx, runtime.Handle{ID: "klorq-dev"}, time.Second)
+	err := backend.Stop(ctx, runtime.Handle{ID: "lickren-dev"}, time.Second)
 	if !errors.Is(err, taskErr) || !errors.Is(err, networkErr) {
 		t.Fatalf("one of the stop failures was hidden: %v", err)
 	}
@@ -440,7 +440,7 @@ func TestCreateRemovesContainerWhenRunFails(t *testing.T) {
 			if listings == 1 {
 				return nil, nil // pre-create check: name is free
 			}
-			return []byte("klorq-dev\n"), nil // ctr left a partial container
+			return []byte("lickren-dev\n"), nil // ctr left a partial container
 		}
 		return nil, nil
 	}}
@@ -453,7 +453,7 @@ func TestCreateRemovesContainerWhenRunFails(t *testing.T) {
 		t.Fatal("failed run returned no error")
 	}
 	calls := fmt.Sprint(runner.calls)
-	if !strings.Contains(calls, "containers delete klorq-dev") {
+	if !strings.Contains(calls, "containers delete lickren-dev") {
 		t.Fatalf("partial container was not removed: %s", calls)
 	}
 }
@@ -470,7 +470,7 @@ func TestCreatePassesProxyChannelAnnotation(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := fmt.Sprint(runner.calls)
-	wantAnnotation := fmt.Sprintf("io.klorq.proxy=port=1027,socket=%s", proxySocket)
+	wantAnnotation := fmt.Sprintf("io.lickren.proxy=port=1027,socket=%s", proxySocket)
 	if !strings.Contains(calls, wantAnnotation) {
 		t.Fatalf("proxy annotation missing: %s", calls)
 	}
@@ -483,7 +483,7 @@ func TestCreateMountsAndStartsProxyHelper(t *testing.T) {
 		t.Fatal(err)
 	}
 	backend.client.runner = runner
-	helper := filepath.Join(t.TempDir(), "klorq-proxy-helper")
+	helper := filepath.Join(t.TempDir(), "lickren-proxy-helper")
 	if err := os.WriteFile(helper, []byte("synthetic helper"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -493,8 +493,8 @@ func TestCreateMountsAndStartsProxyHelper(t *testing.T) {
 	}
 	calls := fmt.Sprint(runner.calls)
 	for _, want := range []string{
-		"type=bind,src=" + helper + ",dst=/tmp/klorq-proxy-helper,options=rbind:ro",
-		"/tmp/klorq-proxy-helper -listen 127.0.0.1:3128 -cid 2 -port 1027 -service-host api.openai.com",
+		"type=bind,src=" + helper + ",dst=/tmp/lickren-proxy-helper,options=rbind:ro",
+		"/tmp/lickren-proxy-helper -listen 127.0.0.1:3128 -cid 2 -port 1027 -service-host api.openai.com",
 	} {
 		if !strings.Contains(calls, want) {
 			t.Fatalf("missing %q in runtime call: %s", want, calls)

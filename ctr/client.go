@@ -149,7 +149,7 @@ func (c *Client) Run(ctx context.Context, spec RunSpec) error {
 		"run", "--detach",
 		"--runtime", c.cfg.Runtime,
 		"--snapshotter", c.cfg.Snapshotter,
-		"--label", "io.klorq.sandbox=" + spec.Name,
+		"--label", "io.lickren.sandbox=" + spec.Name,
 		"--cpus", strconv.Itoa(int(spec.CPUs)),
 		"--memory-limit", strconv.FormatUint(uint64(spec.MemoryMiB)*1024*1024, 10),
 	}

@@ -5,7 +5,7 @@ set -eu
 : "${OUT:?set OUT to the gvproxy output path}"
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 "$ROOT/scripts/verify-pinned-source.sh" "$GVPROXY_SRC" 0b0819c174331f5b86d96db3ab7aad7dd126078e
-WORK=$(mktemp -d "${TMPDIR:-/tmp}/klorq-gvproxy-build.XXXXXX")
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/lickren-gvproxy-build.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT INT TERM
 cp -R "$GVPROXY_SRC" "$WORK/src"
 chmod -R u+w "$WORK/src"

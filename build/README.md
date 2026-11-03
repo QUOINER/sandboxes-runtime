@@ -84,7 +84,7 @@ go build -o gvproxy-policy-v2 ./cmd/gvproxy
 or use `scripts/build-gvproxy.sh` with `GVPROXY_SRC` and `OUT`.
 
 The containerd process must find the patched shim on PATH before the stock
-`containerd-shim-nerdbox-v1`; Klorq does not modify an existing containerd
+`containerd-shim-nerdbox-v1`; Lickren does not modify an existing containerd
 installation. `scripts/build-nerdbox-shim.sh` builds and signs it.
 
 Both native build scripts verify the source checkout's exact manifest commit

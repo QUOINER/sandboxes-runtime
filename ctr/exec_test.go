@@ -26,13 +26,13 @@ func TestExecPassesArgumentsWithoutShell(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
-	code, err := backend.Exec(context.Background(), runtime.Handle{ID: "klorq-example", FIFODir: "/tmp/fifo"}, runtime.ExecRequest{
-		Argv: []string{"printf", "$(touch /tmp/never-created-by-klorq)"}, Workdir: "/workspace", Stdout: &stdout, Stderr: &stderr,
+	code, err := backend.Exec(context.Background(), runtime.Handle{ID: "lickren-example", FIFODir: "/tmp/fifo"}, runtime.ExecRequest{
+		Argv: []string{"printf", "$(touch /tmp/never-created-by-lickren)"}, Workdir: "/workspace", Stdout: &stdout, Stderr: &stderr,
 	})
 	if err != nil || code != 0 {
 		t.Fatalf("exec = %d, %v", code, err)
 	}
-	for _, want := range []string{"tasks\nexec\n", "--fifo-dir\n/tmp/fifo\n", "--cwd\n/workspace\n", "klorq-example\nprintf\n$(touch /tmp/never-created-by-klorq)\n"} {
+	for _, want := range []string{"tasks\nexec\n", "--fifo-dir\n/tmp/fifo\n", "--cwd\n/workspace\n", "lickren-example\nprintf\n$(touch /tmp/never-created-by-lickren)\n"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("missing %q in %q", want, stdout.String())
 		}
@@ -52,12 +52,12 @@ func TestExecRejectsInvalidInput(t *testing.T) {
 		req    runtime.ExecRequest
 	}{
 		{runtime.Handle{ID: "-other"}, runtime.ExecRequest{Argv: []string{"true"}}},
-		{runtime.Handle{ID: "klorq-x"}, runtime.ExecRequest{}},
-		{runtime.Handle{ID: "klorq-x"}, runtime.ExecRequest{Argv: []string{"true"}, Workdir: "relative"}},
-		{runtime.Handle{ID: "klorq-x"}, runtime.ExecRequest{Argv: []string{"true", "bad\x00arg"}}},
-		{runtime.Handle{ID: "klorq-x"}, runtime.ExecRequest{Argv: []string{"true"}, Env: []string{"A=1"}}},
-		{runtime.Handle{ID: "klorq-x"}, runtime.ExecRequest{Argv: []string{"true"}, User: "0:0"}},
-		{runtime.Handle{ID: "klorq-x"}, runtime.ExecRequest{Argv: []string{"true"}, User: "root"}},
+		{runtime.Handle{ID: "lickren-x"}, runtime.ExecRequest{}},
+		{runtime.Handle{ID: "lickren-x"}, runtime.ExecRequest{Argv: []string{"true"}, Workdir: "relative"}},
+		{runtime.Handle{ID: "lickren-x"}, runtime.ExecRequest{Argv: []string{"true", "bad\x00arg"}}},
+		{runtime.Handle{ID: "lickren-x"}, runtime.ExecRequest{Argv: []string{"true"}, Env: []string{"A=1"}}},
+		{runtime.Handle{ID: "lickren-x"}, runtime.ExecRequest{Argv: []string{"true"}, User: "0:0"}},
+		{runtime.Handle{ID: "lickren-x"}, runtime.ExecRequest{Argv: []string{"true"}, User: "root"}},
 	} {
 		if _, err := backend.Exec(context.Background(), tc.handle, tc.req); err == nil || strings.Contains(err.Error(), "/does/not/exist") {
 			t.Fatalf("invalid request was not rejected before starting ctr: %v", err)
@@ -76,7 +76,7 @@ func TestExecReportsExitAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handle, req := runtime.Handle{ID: "klorq-example"}, runtime.ExecRequest{Argv: []string{"false"}}
+	handle, req := runtime.Handle{ID: "lickren-example"}, runtime.ExecRequest{Argv: []string{"false"}}
 	code, err := backend.Exec(context.Background(), handle, req)
 	if code != 7 || err == nil {
 		t.Fatalf("ambiguous ctr exit = %d, %v", code, err)
@@ -95,10 +95,10 @@ func TestExecCancellationTargetsGuestProcess(t *testing.T) {
 			dir := t.TempDir()
 			program := filepath.Join(dir, "fake-ctr")
 			ready, killLog := filepath.Join(dir, "ready"), filepath.Join(dir, "kill")
-			t.Setenv("KLORQ_TEST_READY", ready)
-			t.Setenv("KLORQ_TEST_KILL_LOG", killLog)
-			t.Setenv("KLORQ_TEST_KILL_FAIL", fmt.Sprint(failKill))
-			script := "#!/bin/sh\ncase \"$*\" in\n*'tasks kill'*) printf '%s' \"$*\" > \"$KLORQ_TEST_KILL_LOG\"; [ \"$KLORQ_TEST_KILL_FAIL\" = false ]; exit $? ;;\n*) touch \"$KLORQ_TEST_READY\"; exec sleep 30 ;;\nesac\n"
+			t.Setenv("LICKREN_TEST_READY", ready)
+			t.Setenv("LICKREN_TEST_KILL_LOG", killLog)
+			t.Setenv("LICKREN_TEST_KILL_FAIL", fmt.Sprint(failKill))
+			script := "#!/bin/sh\ncase \"$*\" in\n*'tasks kill'*) printf '%s' \"$*\" > \"$LICKREN_TEST_KILL_LOG\"; [ \"$LICKREN_TEST_KILL_FAIL\" = false ]; exit $? ;;\n*) touch \"$LICKREN_TEST_READY\"; exec sleep 30 ;;\nesac\n"
 			if err := os.WriteFile(program, []byte(script), 0o700); err != nil {
 				t.Fatal(err)
 			}
@@ -110,7 +110,7 @@ func TestExecCancellationTargetsGuestProcess(t *testing.T) {
 			defer cancel()
 			done := make(chan error, 1)
 			go func() {
-				_, err := backend.Exec(ctx, runtime.Handle{ID: "klorq-owned"}, runtime.ExecRequest{Argv: []string{"sleep"}})
+				_, err := backend.Exec(ctx, runtime.Handle{ID: "lickren-owned"}, runtime.ExecRequest{Argv: []string{"sleep"}})
 				done <- err
 			}()
 			deadline := time.Now().Add(5 * time.Second)
@@ -129,7 +129,7 @@ func TestExecCancellationTargetsGuestProcess(t *testing.T) {
 				t.Fatalf("unexpected cancellation result: %v", err)
 			}
 			data, err := os.ReadFile(killLog)
-			if err != nil || !strings.Contains(string(data), "tasks kill --signal SIGKILL --exec-id klorq-exec-") || !strings.Contains(string(data), "klorq-owned") {
+			if err != nil || !strings.Contains(string(data), "tasks kill --signal SIGKILL --exec-id lickren-exec-") || !strings.Contains(string(data), "lickren-owned") {
 				t.Fatalf("guest kill not directed to exec: %q, %v", data, err)
 			}
 		})
