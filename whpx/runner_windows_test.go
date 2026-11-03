@@ -3,8 +3,12 @@
 package whpx
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -35,6 +39,63 @@ func TestVerifyGuestPipeACL(t *testing.T) {
 				t.Fatalf("verifyGuestPipeACL() error = %v, wantErr %t", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestRunnerReapsUnexpectedQEMUExit(t *testing.T) {
+	qemuPath, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner, err := NewRunner(qemuPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit := make(chan error, 1)
+	runner.SetOnExit(func(id string, err error) {
+		if id != "runner-exit-test" {
+			exit <- fmt.Errorf("unexpected QEMU instance ID %q", id)
+			return
+		}
+		exit <- err
+	})
+
+	artifacts := make([]string, 3)
+	for i, name := range []string{"kernel", "initrd", "root.qcow2"} {
+		path := filepath.Join(t.TempDir(), name)
+		if err := os.WriteFile(path, []byte("test"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		artifacts[i] = path
+	}
+	startCtx, cancelStart := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelStart()
+	if err := runner.Start(startCtx, "runner-exit-test", StartConfig{Boot: Config{
+		KernelPath: artifacts[0], InitrdPath: artifacts[1], RootDiskPath: artifacts[2],
+		NetworkEndpoint: "127.0.0.1:54321", CPUs: 1, MemoryMiB: 512,
+	}}); err != nil {
+		t.Fatalf("start child process: %v", err)
+	}
+
+	select {
+	case exitErr := <-exit:
+		if exitErr == nil {
+			t.Fatal("unexpected QEMU process exit was reported as successful")
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("runner did not report the unexpected QEMU process exit")
+	}
+
+	runner.mu.Lock()
+	remaining := len(runner.instances)
+	runner.mu.Unlock()
+	if remaining != 0 {
+		t.Fatalf("runner retained %d exited instance(s)", remaining)
+	}
+	closeCtx, cancelClose := context.WithTimeout(context.Background(), time.Second)
+	defer cancelClose()
+	if err := runner.Close(closeCtx); err != nil {
+		t.Fatalf("close runner after child exit: %v", err)
 	}
 }
 
