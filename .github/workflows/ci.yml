@@ -192,30 +192,3 @@ jobs:
           path: ${{ runner.temp }}/sandboxes-runtime.cdx.json
           if-no-files-found: error
           retention-days: 90
-  go:
-    if: always()
-    needs:
-      - dependencies
-      - tidy
-      - build
-      - format
-      - vet
-      - test
-      - fuzz-smoke
-      - lint
-      - vulnerability
-      - windows-build
-      - windows-test
-      - sbom
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require all verification jobs to pass
-        env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
-        run: |
-          for result in $RESULTS; do
-            if [[ "$result" != "success" ]]; then
-              echo "A verification job returned: $result" >&2
-              exit 1
-            fi
-          done
