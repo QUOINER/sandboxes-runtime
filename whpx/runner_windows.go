@@ -236,7 +236,7 @@ func newGuestPipeName() (string, error) {
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return "", fmt.Errorf("generate WHPX guest pipe name: %w", err)
 	}
-	return "lickren-guest-" + hex.EncodeToString(nonce[:]), nil
+	return "rheic-guest-" + hex.EncodeToString(nonce[:]), nil
 }
 
 func verifyGuestPipeACL(handle windows.Handle) error {
@@ -467,7 +467,7 @@ func qemuEnvironmentBlock() ([]uint16, error) {
 	if err != nil {
 		return nil, err
 	}
-	values := []string{"SystemRoot=" + systemRoot, "LICKREN_PIPE_SDDL=" + securityDescriptor}
+	values := []string{"SystemRoot=" + systemRoot, "RHEIC_PIPE_SDDL=" + securityDescriptor}
 	for _, key := range []string{"WINDIR", "TEMP", "TMP"} {
 		if value, ok := os.LookupEnv(key); ok && value != "" {
 			values = append(values, key+"="+value)

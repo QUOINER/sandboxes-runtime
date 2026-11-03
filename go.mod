@@ -1,4 +1,4 @@
-module github.com/lickren/sandboxes-runtime
+module github.com/rheic/sandboxes-runtime
 
 go 1.27
 

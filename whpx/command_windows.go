@@ -72,7 +72,7 @@ func BuildArgs(cfg Config) ([]string, error) {
 		"-device", "virtio-net-pci,netdev=net0",
 		"-device", "virtio-serial-pci,id=guest-serial",
 		"-chardev", "pipe,id=guest-agent,path=" + cfg.GuestPipeName,
-		"-device", "virtserialport,chardev=guest-agent,name=org.lickren.guest.0",
+		"-device", "virtserialport,chardev=guest-agent,name=org.rheic.guest.0",
 		"-display", "none",
 		"-serial", "null",
 		"-monitor", "none",

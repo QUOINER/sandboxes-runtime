@@ -96,13 +96,13 @@ index 0000000..143e12c
 +)
 +
 +// proxyChannelAnnotation configures an extra guest-dialed vsock port that
-+// libkrun bridges to a host unix socket owned by the Klorq proxy broker.
++// libkrun bridges to a host unix socket owned by the Rheic proxy broker.
 +// The value is a comma-separated list of key=value fields:
 +//
-+//	io.klorq.proxy=port=1027,socket=/abs/path/proxy.sock
++//	io.rheic.proxy=port=1027,socket=/abs/path/proxy.sock
 +//
 +// The annotation is consumed by the shim and never forwarded into the guest.
-+const proxyChannelAnnotation = "io.klorq.proxy"
++const proxyChannelAnnotation = "io.rheic.proxy"
 +
 +func proxyChannelFromBundle(b *bundle.Bundle) (*sandbox.ProxyChannel, error) {
 +	value, ok := b.Spec.Annotations[proxyChannelAnnotation]
@@ -177,7 +177,7 @@ index 0000000..fa0a33a
 +		ok    bool
 +	}{
 +		{name: "valid", value: "port=1027,socket=/tmp/proxy.sock", port: 1027, ok: true},
-+		{name: "high port", value: "port=1126,socket=/run/klorq/proxy.sock", port: 1126, ok: true},
++		{name: "high port", value: "port=1126,socket=/run/rheic/proxy.sock", port: 1126, ok: true},
 +		{name: "shim rpc port reserved", value: "port=1025,socket=/tmp/proxy.sock"},
 +		{name: "stream port reserved", value: "port=1026,socket=/tmp/proxy.sock"},
 +		{name: "missing port", value: "socket=/tmp/proxy.sock"},

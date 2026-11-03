@@ -15,7 +15,7 @@ diff --git a/chardev/char-pipe.c b/chardev/char-pipe.c
      int ret;
      DWORD size;
      char *openname;
-+    const char *pipe_sddl = g_getenv("LICKREN_PIPE_SDDL");
++    const char *pipe_sddl = g_getenv("RHEIC_PIPE_SDDL");
 +    PSECURITY_DESCRIPTOR pipe_sd = NULL;
 +    SECURITY_ATTRIBUTES pipe_sa = { sizeof(pipe_sa), NULL, FALSE };
  
