@@ -45,3 +45,15 @@ Current limits are explicit:
 - no snapshots or GPU;
 - live VM validation is platform-specific and does not establish cross-platform
   parity; fault and independent security reviews remain open.
+
+## Windows WHPX work in progress
+
+`whpx.BuildArgs` builds a restricted QEMU argv for a Linux kernel/initrd/root
+disk, forces `accel=whpx`, and permits the QEMU socket-network backend to
+connect only to IPv4 loopback. `whpx.Runner` starts and tracks QEMU in
+kill-on-close Windows Job Objects. These APIs are not wired into daemon
+composition and do not implement `runtime.Backend`. Windows host support
+remains unavailable until the project supplies and integrates owned disk/image
+lifecycle, the guest control and workspace protocols, a private gateway API/
+lease transport, and fail-closed cleanup. Do not use this low-level runtime
+layer as evidence of a bootable or isolated sandbox.

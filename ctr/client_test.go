@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	runtime "github.com/quoiner/sandboxes-runtime"
+	runtime "github.com/lickren/sandboxes-runtime"
 )
 
 type fakeRunner struct {
