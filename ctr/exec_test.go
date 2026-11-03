@@ -15,6 +15,7 @@ import (
 )
 
 func TestExecPassesArgumentsWithoutShell(t *testing.T) {
+	requirePosixCtrFixture(t)
 	dir := t.TempDir()
 	program := filepath.Join(dir, "fake-ctr")
 	if err := os.WriteFile(program, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\"\nprintf 'synthetic stderr' >&2\n"), 0o700); err != nil {
@@ -65,6 +66,7 @@ func TestExecRejectsInvalidInput(t *testing.T) {
 }
 
 func TestExecReportsExitAndCancellation(t *testing.T) {
+	requirePosixCtrFixture(t)
 	dir := t.TempDir()
 	program := filepath.Join(dir, "fake-ctr")
 	if err := os.WriteFile(program, []byte("#!/bin/sh\nexit 7\n"), 0o700); err != nil {
@@ -87,6 +89,7 @@ func TestExecReportsExitAndCancellation(t *testing.T) {
 }
 
 func TestExecCancellationTargetsGuestProcess(t *testing.T) {
+	requirePosixCtrFixture(t)
 	for _, failKill := range []bool{false, true} {
 		t.Run(fmt.Sprint(failKill), func(t *testing.T) {
 			dir := t.TempDir()
@@ -168,5 +171,12 @@ func TestStartErrorCodeWritesToStdoutContract(t *testing.T) {
 	code, handled := startErrorCode(&output, errors.New("OCI runtime exec failed: executable file `missing` not found in $PATH"))
 	if !handled || code != 127 || !strings.Contains(output.String(), "not found in $PATH") {
 		t.Fatalf("code=%d handled=%v output=%q", code, handled, output.String())
+	}
+}
+
+func requirePosixCtrFixture(t *testing.T) {
+	t.Helper()
+	if os.PathSeparator == '\\' {
+		t.Skip("fake ctr fixture uses a POSIX shell script")
 	}
 }
