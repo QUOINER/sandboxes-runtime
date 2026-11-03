@@ -1,5 +1,9 @@
 # sandboxes-runtime
 
+## Import path migration
+
+The canonical Go module path is now `github.com/lickren/sandboxes-runtime` (previously `github.com/quoiner/sandboxes-runtime`). Update imports and `go.mod` requirements when moving to a release that includes this change. The old module path is not kept as a compatibility alias.
+
 `runtime.Config` supports the additive per-VM service-proxy channel. A proxy
 helper is mounted read-only at `/tmp/klorq-proxy-helper` and started by an
 `/bin/sh` init wrapper; the helper accepts only the configured upstream host and
