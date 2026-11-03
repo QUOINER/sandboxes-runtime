@@ -38,3 +38,14 @@ jobs:
           golangci-lint run ./...
       - name: Vulnerability check
         run: govulncheck ./...
+      - name: Generate CycloneDX module SBOM
+        run: |
+          go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
+          cyclonedx-gomod mod -json -licenses -test -type library \
+            -output "$RUNNER_TEMP/sandboxes-runtime.cdx.json" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sandboxes-runtime-sbom-${{ github.sha }}
+          path: ${{ runner.temp }}/sandboxes-runtime.cdx.json
+          if-no-files-found: error
+          retention-days: 90

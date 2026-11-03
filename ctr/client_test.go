@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	runtime "github.com/KLORQ/sandboxes-runtime"
+	runtime "github.com/quoiner/sandboxes-runtime"
 )
 
 type fakeRunner struct {
@@ -469,5 +471,39 @@ func TestCreatePassesProxyChannelAnnotation(t *testing.T) {
 	calls := fmt.Sprint(runner.calls)
 	if !strings.Contains(calls, "io.klorq.proxy=port=1027,socket=/run/klorq/dev.proxy.sock") {
 		t.Fatalf("proxy annotation missing: %s", calls)
+	}
+}
+
+func TestCreateMountsAndStartsProxyHelper(t *testing.T) {
+	runner := &fakeRunner{}
+	backend, err := NewBackend(Config{Socket: "/tmp/containerd.sock", CTR: "ctr"}, BackendOptions{Image: "img"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend.client.runner = runner
+	helper := filepath.Join(t.TempDir(), "klorq-proxy-helper")
+	if err := os.WriteFile(helper, []byte("synthetic helper"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cfg := runtime.Config{Name: "dev", Image: "img", ProxyPort: 1027, ProxySocket: "/tmp/kp-12345678/proxy.sock"}
+	if _, err := backend.CreateWithProxy(context.Background(), &cfg, helper, 3128, "api.openai.com"); err != nil {
+		t.Fatal(err)
+	}
+	calls := fmt.Sprint(runner.calls)
+	for _, want := range []string{
+		"type=bind,src=" + helper + ",dst=/tmp/klorq-proxy-helper,options=rbind:ro",
+		"/tmp/klorq-proxy-helper -listen 127.0.0.1:3128 -cid 2 -port 1027 -service-host api.openai.com",
+	} {
+		if !strings.Contains(calls, want) {
+			t.Fatalf("missing %q in runtime call: %s", want, calls)
+		}
+	}
+}
+
+func TestProxyHelperRejectsShellMetacharactersInHost(t *testing.T) {
+	for _, host := range []string{"api.openai.com; touch /tmp/owned", "api.openai.com:443", " api.openai.com"} {
+		if validProxyServiceHost(host) {
+			t.Fatalf("accepted unsafe service host %q", host)
+		}
 	}
 }

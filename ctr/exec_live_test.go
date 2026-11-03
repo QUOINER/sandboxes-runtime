@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	runtime "github.com/KLORQ/sandboxes-runtime"
+	runtime "github.com/quoiner/sandboxes-runtime"
 )
 
 // TestLiveExec requires an explicitly supplied, already running, owned VM.

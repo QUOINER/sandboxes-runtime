@@ -65,6 +65,13 @@ type Config struct {
 	// to a host unix socket (see ADR-0002). Zero disables it.
 	ProxyPort   uint32
 	ProxySocket string
+	// ProxyHelperPath mounts the trusted static helper read-only and enables
+	// the guest init wrapper when non-empty.
+	ProxyHelperPath string
+	// ProxyGuestPort is the helper's loopback HTTP port.
+	ProxyGuestPort uint16
+	// ProxyServiceHost is the fixed upstream host the helper may address.
+	ProxyServiceHost string
 }
 
 // Handle identifies a runtime instance.

@@ -1,5 +1,12 @@
 # sandboxes-runtime
 
+`runtime.Config` supports the additive per-VM service-proxy channel. A proxy
+helper is mounted read-only at `/tmp/klorq-proxy-helper` and started by an
+`/bin/sh` init wrapper; the helper accepts only the configured upstream host and
+talks to the host broker over the shim's vsock bridge. The helper path must be
+a static Linux ARM64 binary supplied by the daemon. Runtime users that leave
+`ProxyHelperPath` empty retain the existing command path.
+
 Status: pre-alpha.
 
 Runtime adapters for containerd/nerdbox, VM lifecycle, workspace mounts, OCI
