@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,12 @@ type Backend struct {
 	network runtime.Network
 }
 
+type proxyRoute struct {
+	service string
+	host    string
+	port    uint16
+}
+
 // CreateWithProxy configures the optional guest helper while preserving the
 // stable runtime.Backend contract for consumers pinned to older releases.
 func (b *Backend) CreateWithProxy(ctx context.Context, cfg *runtime.Config, helperPath string, guestPort uint16, serviceHost string) (runtime.Handle, error) {
@@ -33,6 +40,42 @@ func (b *Backend) CreateWithProxy(ctx context.Context, cfg *runtime.Config, help
 	cfg.ProxyGuestPort = guestPort
 	cfg.ProxyServiceHost = serviceHost
 	return b.Create(ctx, *cfg)
+}
+
+// CreateWithProxyRouteArgs configures one helper with multiple service-specific
+// guest listeners over the existing per-VM channel.
+func (b *Backend) CreateWithProxyRouteArgs(ctx context.Context, cfg *runtime.Config, helperPath string, routeArgs []string) (runtime.Handle, error) {
+	routes, err := parseProxyRouteArgs(routeArgs)
+	if err != nil {
+		return runtime.Handle{}, err
+	}
+	cfg.ProxyHelperPath = helperPath
+	cfg.ProxyGuestPort = 0
+	cfg.ProxyServiceHost = ""
+	return b.create(ctx, cfg, routes)
+}
+
+func parseProxyRouteArgs(values []string) ([]proxyRoute, error) {
+	routes := make([]proxyRoute, 0, len(values))
+	for _, value := range values {
+		service, target, ok := strings.Cut(value, "=")
+		if !ok {
+			return nil, errors.New("invalid proxy route")
+		}
+		host, portText, ok := strings.Cut(target, ":")
+		if !ok || strings.Contains(portText, ":") {
+			return nil, errors.New("invalid proxy route host or port")
+		}
+		port, err := strconv.ParseUint(portText, 10, 16)
+		if err != nil {
+			return nil, errors.New("invalid proxy route port")
+		}
+		routes = append(routes, proxyRoute{service: service, host: host, port: uint16(port)})
+	}
+	if !validProxyRoutes(routes) {
+		return nil, errors.New("proxy routes are invalid")
+	}
+	return routes, nil
 }
 
 var _ runtime.Backend = (*Backend)(nil)
@@ -61,6 +104,10 @@ func (b *Backend) Capabilities(context.Context) (runtime.Capabilities, error) {
 //
 //nolint:gocritic // The value signature is required by runtime.Backend.
 func (b *Backend) Create(ctx context.Context, cfg runtime.Config) (runtime.Handle, error) {
+	return b.create(ctx, &cfg, nil)
+}
+
+func (b *Backend) create(ctx context.Context, cfg *runtime.Config, proxyRoutes []proxyRoute) (runtime.Handle, error) {
 	image := cfg.Image
 	if image == "" {
 		image = b.image
@@ -99,7 +146,7 @@ func (b *Backend) Create(ctx context.Context, cfg runtime.Config) (runtime.Handl
 		Privileged:  cfg.Privileged,
 		Annotations: append([]string(nil), attachment.Annotations...),
 	}
-	if err := applyProxyConfig(&spec, &cfg); err != nil {
+	if err := applyProxyConfig(&spec, cfg, proxyRoutes); err != nil {
 		return runtime.Handle{}, err
 	}
 	for _, volume := range cfg.BlockVolumes {
@@ -122,22 +169,22 @@ func (b *Backend) Create(ctx context.Context, cfg runtime.Config) (runtime.Handl
 	return runtime.Handle{ID: id, FIFODir: fifoDir}, nil
 }
 
-func applyProxyConfig(spec *RunSpec, cfg *runtime.Config) error {
+func applyProxyConfig(spec *RunSpec, cfg *runtime.Config, routes []proxyRoute) error {
 	if err := applyProxyChannel(spec, cfg); err != nil {
 		return err
 	}
-	return applyProxyHelper(spec, cfg)
+	return applyProxyHelper(spec, cfg, routes)
 }
 
-func applyProxyHelper(spec *RunSpec, cfg *runtime.Config) error {
+func applyProxyHelper(spec *RunSpec, cfg *runtime.Config, routes []proxyRoute) error {
 	if cfg.ProxyHelperPath == "" {
-		if cfg.ProxyGuestPort != 0 || cfg.ProxyServiceHost != "" {
+		if cfg.ProxyGuestPort != 0 || cfg.ProxyServiceHost != "" || len(routes) != 0 {
 			return errors.New("proxy helper options require a helper binary path")
 		}
 		return nil
 	}
-	if cfg.ProxyPort < 1027 || cfg.ProxySocket == "" || !filepath.IsAbs(cfg.ProxyHelperPath) || strings.ContainsAny(cfg.ProxyHelperPath, ",=\x00\r\n") || cfg.ProxyGuestPort < 1024 || !validProxyServiceHost(cfg.ProxyServiceHost) {
-		return errors.New("proxy helper requires a valid channel, guest port and service host")
+	if err := validateProxyHelperConfig(cfg, routes); err != nil {
+		return err
 	}
 	spec.Mounts = append(spec.Mounts, Mount{
 		Source:      cfg.ProxyHelperPath,
@@ -147,14 +194,75 @@ func applyProxyHelper(spec *RunSpec, cfg *runtime.Config) error {
 	// Run the trusted static helper directly as the container process. This
 	// keeps proxy-enabled workload images independent of /bin/sh and avoids
 	// interpolating configuration into a shell program.
-	spec.Args = []string{
-		"/tmp/rheic-proxy-helper",
-		"-listen", fmt.Sprintf("127.0.0.1:%d", cfg.ProxyGuestPort),
-		"-cid", "2",
-		"-port", fmt.Sprint(cfg.ProxyPort),
-		"-service-host", cfg.ProxyServiceHost,
+	spec.Args = proxyHelperArgs(cfg, routes)
+	return nil
+}
+
+func validateProxyHelperConfig(cfg *runtime.Config, routes []proxyRoute) error {
+	if cfg.ProxyPort < 1027 || cfg.ProxySocket == "" || !filepath.IsAbs(cfg.ProxyHelperPath) || strings.ContainsAny(cfg.ProxyHelperPath, ",=\x00\r\n") {
+		return errors.New("proxy helper requires a valid channel and executable path")
+	}
+	if len(routes) == 0 {
+		if cfg.ProxyGuestPort >= 1024 && validProxyServiceHost(cfg.ProxyServiceHost) {
+			return nil
+		}
+		return errors.New("proxy helper requires a valid guest port and service host")
+	}
+	if cfg.ProxyGuestPort != 0 || cfg.ProxyServiceHost != "" || !validProxyRoutes(routes) {
+		return errors.New("proxy helper routes are invalid or conflict with legacy route settings")
 	}
 	return nil
+}
+
+func proxyHelperArgs(cfg *runtime.Config, routes []proxyRoute) []string {
+	args := []string{"/tmp/rheic-proxy-helper"}
+	if len(routes) == 0 {
+		return append(args, "-listen", fmt.Sprintf("127.0.0.1:%d", cfg.ProxyGuestPort),
+			"-cid", "2", "-port", fmt.Sprint(cfg.ProxyPort), "-service-host", cfg.ProxyServiceHost)
+	}
+	args = append(args, "-cid", "2", "-port", fmt.Sprint(cfg.ProxyPort))
+	for _, route := range routes {
+		args = append(args, "-route", fmt.Sprintf("%s=%s:%d", route.service, route.host, route.port))
+	}
+	return args
+}
+
+func validProxyRoutes(routes []proxyRoute) bool {
+	if len(routes) < 2 || len(routes) > 32 {
+		return false
+	}
+	services := make(map[string]struct{}, len(routes))
+	ports := make(map[uint16]struct{}, len(routes))
+	for _, route := range routes {
+		if !validProxyServiceName(route.service) || route.port < 1024 || !validProxyServiceHost(route.host) {
+			return false
+		}
+		if _, exists := services[route.service]; exists {
+			return false
+		}
+		if _, exists := ports[route.port]; exists {
+			return false
+		}
+		services[route.service] = struct{}{}
+		ports[route.port] = struct{}{}
+	}
+	return true
+}
+
+func validProxyServiceName(name string) bool {
+	if name == "" || len(name) > 64 {
+		return false
+	}
+	for _, char := range name {
+		if char < 'a' || char > 'z' {
+			if char < '0' || char > '9' {
+				if char != '-' {
+					return false
+				}
+			}
+		}
+	}
+	return true
 }
 
 func validProxyServiceHost(host string) bool {
