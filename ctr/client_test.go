@@ -505,6 +505,57 @@ func TestCreateMountsAndStartsProxyHelper(t *testing.T) {
 	}
 }
 
+func TestCreateWithProxyRoutesStartsMultipleListeners(t *testing.T) {
+	runner := &fakeRunner{}
+	backend, err := NewBackend(Config{Socket: "/tmp/containerd.sock", CTR: "ctr"}, BackendOptions{Image: "img"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend.client.runner = runner
+	helper := filepath.Join(t.TempDir(), "rheic-proxy-helper")
+	if err := os.WriteFile(helper, []byte("synthetic helper"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cfg := runtime.Config{Name: "dev", Image: "img", ProxyPort: 1027, ProxySocket: filepath.Join(os.TempDir(), "dev.proxy.sock")}
+	routes := []string{"openai=api.openai.com:3128", "anthropic=api.anthropic.com:3129"}
+	if _, err := backend.CreateWithProxyRouteArgs(context.Background(), &cfg, helper, routes); err != nil {
+		t.Fatal(err)
+	}
+	calls := fmt.Sprint(runner.calls)
+	for _, want := range []string{
+		"-route openai=api.openai.com:3128",
+		"-route anthropic=api.anthropic.com:3129",
+	} {
+		if !strings.Contains(calls, want) {
+			t.Fatalf("missing %q in runtime call: %s", want, calls)
+		}
+	}
+	if strings.Contains(calls, "/bin/sh") {
+		t.Fatalf("proxy helper unexpectedly depends on a shell: %s", calls)
+	}
+}
+
+func TestValidProxyRoutesRejectAmbiguousOrUnsafeRoutes(t *testing.T) {
+	valid := []proxyRoute{
+		{service: "openai", port: 3128, host: "api.openai.com"},
+		{service: "anthropic", port: 3129, host: "api.anthropic.com"},
+	}
+	if !validProxyRoutes(valid) {
+		t.Fatal("valid proxy routes were rejected")
+	}
+	for _, routes := range [][]proxyRoute{
+		{valid[0]},
+		{valid[0], {service: "openai", port: 3130, host: "api.other.com"}},
+		{valid[0], {service: "anthropic", port: 3128, host: "api.anthropic.com"}},
+		{valid[0], {service: "anthropic;touch", port: 3129, host: "api.anthropic.com"}},
+		{valid[0], {service: "anthropic", port: 3129, host: "api.anthropic.com:443"}},
+	} {
+		if validProxyRoutes(routes) {
+			t.Fatalf("unsafe or ambiguous routes were accepted: %+v", routes)
+		}
+	}
+}
+
 func TestProxyHelperRejectsShellMetacharactersInHost(t *testing.T) {
 	for _, host := range []string{"api.openai.com; touch /tmp/owned", "api.openai.com:443", " api.openai.com"} {
 		if validProxyServiceHost(host) {
