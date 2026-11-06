@@ -3361,7 +3361,7 @@ index b2b44614..5f4ac70d 100644
  	if err != nil {
  		return nil, fmt.Errorf("cannot add network services: %w", err)
  	}
-@@ -103,11 +113,28 @@ func New(configuration *types.Configuration) (*VirtualNetwork, error) {
+@@ -103,10 +113,26 @@ func New(configuration *types.Configuration) (*VirtualNetwork, error) {
  		servicesMux:    mux,
  		ipPool:         ipPool,
  		portsForwarder: portsForwarder,
@@ -3388,7 +3388,7 @@ index b2b44614..5f4ac70d 100644
 +func (n *VirtualNetwork) EgressPolicyRevision() string {
 +	return n.egressPolicy.Revision()
  }
-
+ 
 diff --git a/pkg/virtualnetwork/mux.go b/pkg/virtualnetwork/mux.go
 index 4f0ef8ca..6b9dc381 100644
 --- a/pkg/virtualnetwork/mux.go
@@ -3404,7 +3404,6 @@ index 4f0ef8ca..6b9dc381 100644
  }
  
  // Mux returns the full mux (services + connect) wrapped with audit logging middleware.
-
 diff --git a/pkg/virtualnetwork/services.go b/pkg/virtualnetwork/services.go
 index 3ed9a996..eed8d7a8 100644
 --- a/pkg/virtualnetwork/services.go
