@@ -1,10 +1,12 @@
 package manifest
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -18,6 +20,73 @@ func TestRepositoryManifest(t *testing.T) {
 	if err := m.Verify(root); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestGVProxyPatchHunkCounts(t *testing.T) {
+	path := filepath.Join("..", "..", "build", "patches", "gvproxy-egress-policy-v2.patch")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+	for i := 0; i < len(lines); {
+		if !strings.HasPrefix(lines[i], "@@ ") {
+			i++
+			continue
+		}
+		oldWant, newWant, err := parsePatchHunkCounts(lines[i])
+		if err != nil {
+			t.Fatalf("patch line %d: %v", i+1, err)
+		}
+		oldCount, newCount := 0, 0
+		j := i + 1
+		for ; j < len(lines) && !strings.HasPrefix(lines[j], "@@ ") && !strings.HasPrefix(lines[j], "diff --git "); j++ {
+			line := lines[j]
+			if line == "" {
+				t.Fatalf("patch line %d: unprefixed blank line inside hunk", j+1)
+			}
+			switch line[0] {
+			case ' ':
+				oldCount++
+				newCount++
+			case '-':
+				oldCount++
+			case '+':
+				newCount++
+			case '\\':
+			default:
+				t.Fatalf("patch line %d: invalid hunk line prefix %q", j+1, line[0])
+			}
+		}
+		if oldCount != oldWant || newCount != newWant {
+			t.Errorf("patch hunk at line %d declares %d/%d lines, contains %d/%d", i+1, oldWant, newWant, oldCount, newCount)
+		}
+		i = j
+	}
+}
+
+func parsePatchHunkCounts(header string) (int, int, error) {
+	fields := strings.Fields(header)
+	if len(fields) < 4 {
+		return 0, 0, fmt.Errorf("invalid hunk header %q", header)
+	}
+	count := func(value string) (int, error) {
+		value = strings.TrimLeft(value, "-+")
+		_, size, hasSize := strings.Cut(value, ",")
+		if !hasSize {
+			return 1, nil
+		}
+		return strconv.Atoi(size)
+	}
+	oldCount, err := count(fields[1])
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid old range in %q: %w", header, err)
+	}
+	newCount, err := count(fields[2])
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid new range in %q: %w", header, err)
+	}
+	return oldCount, newCount, nil
 }
 
 func TestNativeBuildScriptsUseManifestCommits(t *testing.T) {
