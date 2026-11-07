@@ -132,6 +132,10 @@ type RunSpec struct {
 	Privileged  bool
 	Annotations []string
 	Args        []string
+	// RunAsRoot runs the trusted proxy helper as root so it can create the
+	// vsock device and install the per-sandbox proxy CA bundle. Agent execs
+	// keep the image user.
+	RunAsRoot bool
 }
 
 // Run creates and starts a detached container.
@@ -158,6 +162,9 @@ func (c *Client) Run(ctx context.Context, spec RunSpec) error {
 	}
 	if spec.Privileged {
 		args = append(args, "--cap-add", "CAP_SYS_ADMIN", "--cap-add", "CAP_NET_ADMIN", "--cap-add", "CAP_NET_RAW")
+	}
+	if spec.RunAsRoot {
+		args = append(args, "--user", "0:0")
 	}
 	for _, annotation := range spec.Annotations {
 		args = append(args, "--annotation", annotation)

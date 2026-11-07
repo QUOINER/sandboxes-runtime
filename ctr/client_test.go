@@ -563,3 +563,26 @@ func TestProxyHelperRejectsShellMetacharactersInHost(t *testing.T) {
 		}
 	}
 }
+
+func TestRunRunsTrustedHelperAsRoot(t *testing.T) {
+	runner := &fakeRunner{}
+	client := newTestClient(t, runner)
+	err := client.Run(context.Background(), RunSpec{
+		ContainerID: "rheic-dev", Name: "dev", Image: "alpine:3.22", RunAsRoot: true,
+		Args: []string{"/tmp/rheic-proxy-helper"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := strings.Join(runner.calls[0], " ")
+	if !strings.Contains(args, "--user 0:0") {
+		t.Fatalf("helper did not run as root: %s", args)
+	}
+	runner.calls = nil
+	if err := client.Run(context.Background(), RunSpec{ContainerID: "rheic-agent", Name: "agent", Image: "alpine:3.22"}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.Join(runner.calls[0], " "), "--user") {
+		t.Fatal("agent workload unexpectedly forced to root")
+	}
+}

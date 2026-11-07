@@ -195,6 +195,7 @@ func applyProxyHelper(spec *RunSpec, cfg *runtime.Config, routes []proxyRoute) e
 	// keeps proxy-enabled workload images independent of /bin/sh and avoids
 	// interpolating configuration into a shell program.
 	spec.Args = proxyHelperArgs(cfg, routes)
+	spec.RunAsRoot = true
 	return nil
 }
 
