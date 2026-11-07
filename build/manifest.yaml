@@ -31,7 +31,7 @@ patches:
     status: experimental
   gvproxy-egress-policy:
     file: patches/gvproxy-egress-policy-v2.patch
-    sha256: 4346fabeb3b2c6679d113d419577a9675ac088a4b121f5018be0a98b2835cec8
+    sha256: 4c20e583410b9b4b8c79893d616ed52434a29739c3ede1961224d25b987e2671
     status: experimental
   qemu-windows-private-pipe:
     file: patches/qemu-windows-private-pipe-v1.patch

@@ -1,5 +1,5 @@
 diff --git a/cmd/gvproxy/config.go b/cmd/gvproxy/config.go
-index 16cbad47..0a99b9e7 100644
+index 16cbad4..0a99b9e 100644
 --- a/cmd/gvproxy/config.go
 +++ b/cmd/gvproxy/config.go
 @@ -24,31 +24,33 @@ const (
@@ -147,7 +147,7 @@ index 16cbad47..0a99b9e7 100644
  	// Make sure the qemu socket provided is valid syntax
  	if config.Interfaces.Qemu != "" {
 diff --git a/cmd/gvproxy/main.go b/cmd/gvproxy/main.go
-index 21ab61ee..3b1362c4 100644
+index 21ab61e..3b1362c 100644
 --- a/cmd/gvproxy/main.go
 +++ b/cmd/gvproxy/main.go
 @@ -5,6 +5,7 @@ import (
@@ -231,7 +231,7 @@ index 21ab61ee..3b1362c4 100644
  	apiToken, err := tokenauth.ReadToken(config.APITokenFile)
  	if err != nil {
 diff --git a/pkg/services/dns/dns.go b/pkg/services/dns/dns.go
-index aeeb9766..a447a928 100644
+index aeeb976..a447a92 100644
 --- a/pkg/services/dns/dns.go
 +++ b/pkg/services/dns/dns.go
 @@ -28,9 +28,12 @@ type upstreamResolver interface {
@@ -331,7 +331,7 @@ index aeeb9766..a447a928 100644
  	mux := dns.NewServeMux()
  	mux.HandleFunc(".", s.handler.handleUDP)
 diff --git a/pkg/services/dns/dns_test.go b/pkg/services/dns/dns_test.go
-index 53b4f1e3..0dacf732 100644
+index 53b4f1e..0dacf73 100644
 --- a/pkg/services/dns/dns_test.go
 +++ b/pkg/services/dns/dns_test.go
 @@ -199,7 +199,10 @@ var _ = ginkgo.Describe("dns add test", func() {
@@ -437,7 +437,7 @@ index 53b4f1e3..0dacf732 100644
  	}, nil
 diff --git a/pkg/services/dns/egress_policy_test.go b/pkg/services/dns/egress_policy_test.go
 new file mode 100644
-index 00000000..f720f19b
+index 0000000..f720f19
 --- /dev/null
 +++ b/pkg/services/dns/egress_policy_test.go
 @@ -0,0 +1,38 @@
@@ -481,10 +481,10 @@ index 00000000..f720f19b
 +}
 diff --git a/pkg/services/dns/policy_dns.go b/pkg/services/dns/policy_dns.go
 new file mode 100644
-index 00000000..b651e7c3
+index 0000000..cbd16d2
 --- /dev/null
 +++ b/pkg/services/dns/policy_dns.go
-@@ -0,0 +1,191 @@
+@@ -0,0 +1,195 @@
 +package dns
 +
 +import (
@@ -513,6 +513,10 @@ index 00000000..b651e7c3
 +	}
 +	clear := func() bool { return h.policy.CommitDNS(q.Name, nil, 0, family, generation) }
 +	fail := func(code int) { clear(); m.Answer = nil; m.Rcode = code }
++	if family == 6 {
++		fail(dns.RcodeServerFailure)
++		return
++	}
 +	if h.policyUpstream == "" || q.Qclass != dns.ClassINET {
 +		fail(dns.RcodeServerFailure)
 +		return
@@ -678,10 +682,10 @@ index 00000000..b651e7c3
 +}
 diff --git a/pkg/services/dns/policy_dns_test.go b/pkg/services/dns/policy_dns_test.go
 new file mode 100644
-index 00000000..7a0fbde5
+index 0000000..b69337d
 --- /dev/null
 +++ b/pkg/services/dns/policy_dns_test.go
-@@ -0,0 +1,295 @@
+@@ -0,0 +1,292 @@
 +package dns
 +
 +import (
@@ -767,15 +771,12 @@ index 00000000..7a0fbde5
 +		t.Fatal("unrelated answer created a binding")
 +	}
 +	m = ask("api.example.test.", dns.TypeAAAA)
-+	if m.Rcode != dns.RcodeSuccess || !holder.AllowsDomain("2001:db8::4", 443, "api.example.test") || !holder.AllowsDomain("192.0.2.4", 443, "api.example.test") {
++	if m.Rcode != dns.RcodeServerFailure || len(m.Answer) != 0 || holder.AllowsDomain("2001:db8::4", 443, "api.example.test") || !holder.AllowsDomain("192.0.2.4", 443, "api.example.test") {
 +		t.Fatalf("AAAA result: rcode=%d answers=%v", m.Rcode, m.Answer)
 +	}
 +	time.Sleep(1200 * time.Millisecond)
 +	if holder.AllowsDomain("192.0.2.4", 443, "api.example.test") {
 +		t.Fatal("CNAME TTL ignored")
-+	}
-+	if !holder.AllowsDomain("2001:db8::4", 443, "api.example.test") {
-+		t.Fatal("AAAA binding expired prematurely")
 +	}
 +	m = ask("zero.example.test.", dns.TypeA)
 +	if m.Rcode != dns.RcodeSuccess || holder.AllowsDomain("192.0.2.5", 443, "zero.example.test") {
@@ -979,7 +980,7 @@ index 00000000..7a0fbde5
 +}
 diff --git a/pkg/services/forwarder/clienthello.go b/pkg/services/forwarder/clienthello.go
 new file mode 100644
-index 00000000..3c6a490e
+index 0000000..3c6a490
 --- /dev/null
 +++ b/pkg/services/forwarder/clienthello.go
 @@ -0,0 +1,75 @@
@@ -1060,7 +1061,7 @@ index 00000000..3c6a490e
 +func (c *replayConn) Read(p []byte) (int, error) { return c.reader.Read(p) }
 diff --git a/pkg/services/forwarder/clienthello_test.go b/pkg/services/forwarder/clienthello_test.go
 new file mode 100644
-index 00000000..ddaf7429
+index 0000000..ddaf742
 --- /dev/null
 +++ b/pkg/services/forwarder/clienthello_test.go
 @@ -0,0 +1,105 @@
@@ -1170,7 +1171,7 @@ index 00000000..ddaf7429
 +	})
 +}
 diff --git a/pkg/services/forwarder/tcp.go b/pkg/services/forwarder/tcp.go
-index 6a1f548a..cd1badb7 100644
+index 6a1f548..cd1badb 100644
 --- a/pkg/services/forwarder/tcp.go
 +++ b/pkg/services/forwarder/tcp.go
 @@ -1,12 +1,15 @@
@@ -1311,7 +1312,7 @@ index 6a1f548a..cd1badb7 100644
  
 diff --git a/pkg/services/forwarder/tcp_policy_test.go b/pkg/services/forwarder/tcp_policy_test.go
 new file mode 100644
-index 00000000..7783b3cf
+index 0000000..7783b3c
 --- /dev/null
 +++ b/pkg/services/forwarder/tcp_policy_test.go
 @@ -0,0 +1,197 @@
@@ -1513,7 +1514,7 @@ index 00000000..7783b3cf
 +	}
 +}
 diff --git a/pkg/services/forwarder/udp.go b/pkg/services/forwarder/udp.go
-index 12694496..cb804df4 100644
+index 1269449..cb804df 100644
 --- a/pkg/services/forwarder/udp.go
 +++ b/pkg/services/forwarder/udp.go
 @@ -5,6 +5,7 @@ import (
@@ -1568,7 +1569,7 @@ index 12694496..cb804df4 100644
  
  			// note that at this point packets that are sent to the current forwarder session
 diff --git a/pkg/types/configuration.go b/pkg/types/configuration.go
-index 613b32a1..37964e24 100644
+index 613b32a..37964e2 100644
 --- a/pkg/types/configuration.go
 +++ b/pkg/types/configuration.go
 @@ -34,6 +34,11 @@ type Configuration struct {
@@ -1596,10 +1597,10 @@ index 613b32a1..37964e24 100644
  type Protocol string
 diff --git a/pkg/types/egress_policy.go b/pkg/types/egress_policy.go
 new file mode 100644
-index 00000000..ec7491b8
+index 0000000..cf2e132
 --- /dev/null
 +++ b/pkg/types/egress_policy.go
-@@ -0,0 +1,1025 @@
+@@ -0,0 +1,1031 @@
 +package types
 +
 +import (
@@ -1727,6 +1728,8 @@ index 00000000..ec7491b8
 +	}
 +	if v4 := ip.To4(); v4 != nil {
 +		ip = v4
++	} else {
++		return false, "ipv6-unsupported"
 +	}
 +	for _, rule := range s.deny {
 +		if rule.matches(protocol, ip, port) {
@@ -1767,6 +1770,10 @@ index 00000000..ec7491b8
 +			_, parsed, err := net.ParseCIDR(strings.TrimSpace(rule.CIDR))
 +			if err != nil {
 +				return nil, fmt.Errorf("%s rule %d: invalid cidr %q: %w", direction, i, rule.CIDR, err)
++			}
++			_, bits := parsed.Mask.Size()
++			if bits != 32 {
++				return nil, fmt.Errorf("%s rule %d: IPv6 egress CIDRs are unsupported", direction, i)
 +			}
 +			network = parsed
 +		}
@@ -2627,10 +2634,10 @@ index 00000000..ec7491b8
 +}
 diff --git a/pkg/types/egress_policy_test.go b/pkg/types/egress_policy_test.go
 new file mode 100644
-index 00000000..b21c5612
+index 0000000..f577ac8
 --- /dev/null
 +++ b/pkg/types/egress_policy_test.go
-@@ -0,0 +1,613 @@
+@@ -0,0 +1,680 @@
 +package types
 +
 +import (
@@ -2717,6 +2724,73 @@ index 00000000..b21c5612
 +	policy := &EgressPolicy{Allow: []EgressRule{{Protocol: "tcp", CIDR: "invalid", Port: 443}}}
 +	if err := policy.Validate(); err == nil {
 +		t.Fatal("invalid CIDR must be rejected at validation time")
++	}
++}
++
++func TestIPv6EgressRulesAreRejected(t *testing.T) {
++	cases := []struct {
++		name    string
++		policy  *EgressPolicy
++		wantErr bool
++	}{
++		{
++			name:   "IPv4 allow positive control",
++			policy: &EgressPolicy{Allow: []EgressRule{{Protocol: "tcp", CIDR: "0.0.0.0/0", Port: 443}}},
++		},
++		{
++			name:    "IPv6 allow rejected",
++			policy:  &EgressPolicy{Allow: []EgressRule{{Protocol: "tcp", CIDR: "2001:db8::/32", Port: 443}}},
++			wantErr: true,
++		},
++		{
++			name:    "IPv6 deny rejected",
++			policy:  &EgressPolicy{Deny: []EgressRule{{Protocol: "tcp", CIDR: "2001:db8::/32", Port: 443}}},
++			wantErr: true,
++		},
++		{
++			name:    "IPv4-mapped IPv6 rejected",
++			policy:  &EgressPolicy{Allow: []EgressRule{{Protocol: "tcp", CIDR: "::ffff:192.0.2.0/120", Port: 443}}},
++			wantErr: true,
++		},
++	}
++	for _, tc := range cases {
++		t.Run(tc.name, func(t *testing.T) {
++			err := tc.policy.Validate()
++			if (err != nil) != tc.wantErr {
++				t.Fatalf("Validate() error = %v, wantErr %v", err, tc.wantErr)
++			}
++		})
++	}
++}
++
++func TestIPv6DestinationDeniedEvenWithAllowAny(t *testing.T) {
++	holder, err := NewEgressPolicyHolder(&EgressPolicy{AllowAny: true, Allow: []EgressRule{{Protocol: "tcp", CIDR: "0.0.0.0/0", Port: 443}}}, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer holder.Close()
++	if holder.Allows("tcp", "2001:db8::1", 443) {
++		t.Fatal("IPv6 destination was allowed by an IPv4-only datapath")
++	}
++	if !holder.Allows("tcp", "192.0.2.1", 443) {
++		t.Fatal("IPv4 positive control was denied by allowAny")
++	}
++}
++
++// The gateway cannot identify QUIC from UDP alone. Keeping UDP/443 denied by
++// default blocks the common QUIC path while preserving explicitly allowed
++// TCP/443; this is a port policy, not protocol detection.
++func TestUDP443IsDeniedUnlessExplicitlyAllowed(t *testing.T) {
++	holder, err := NewEgressPolicyHolder(&EgressPolicy{Allow: []EgressRule{{Protocol: "tcp", CIDR: "0.0.0.0/0", Port: 443}}}, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer holder.Close()
++	if holder.Allows("udp", "192.0.2.10", 443) {
++		t.Fatal("UDP/443 must remain denied when only TCP/443 is allowed")
++	}
++	if !holder.Allows("tcp", "192.0.2.10", 443) {
++		t.Fatal("TCP/443 positive control was denied")
 +	}
 +}
 +
@@ -3244,19 +3318,38 @@ index 00000000..b21c5612
 +		_ = compiled.MatchString(name)
 +	})
 +}
+diff --git a/pkg/virtualnetwork/mux.go b/pkg/virtualnetwork/mux.go
+index 36ec457..bc83b32 100644
+--- a/pkg/virtualnetwork/mux.go
++++ b/pkg/virtualnetwork/mux.go
+@@ -103,7 +103,11 @@ func (n *VirtualNetwork) newServicesMux() *http.ServeMux {
+ 
+ // ServicesMux returns the services mux wrapped with audit logging middleware.
+ func (n *VirtualNetwork) ServicesMux() http.Handler {
+-	return apilog.Middleware(n.newServicesMux())
++	handler := http.Handler(n.newServicesMux())
++	if n.apiToken != "" {
++		handler = tokenauth.BearerAuthMiddleware(n.apiToken)(handler)
++	}
++	return apilog.Middleware(handler)
+ }
+ 
+ // Mux returns the full mux (services + connect) wrapped with audit logging middleware.
 diff --git a/pkg/virtualnetwork/services.go b/pkg/virtualnetwork/services.go
-index 3ed9a996..6bde7f73 100644
+index 3ed9a99..32dc1ac 100644
 --- a/pkg/virtualnetwork/services.go
 +++ b/pkg/virtualnetwork/services.go
-@@ -1,6 +1,7 @@
+@@ -1,6 +1,9 @@
  package virtualnetwork
  
  import (
 +	"context"
++	"encoding/json"
++	"io"
  	"net"
  	"net/http"
  	"sync"
-@@ -21,19 +22,21 @@ import (
+@@ -21,19 +24,21 @@ import (
  	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
  )
  
@@ -3284,7 +3377,40 @@ index 3ed9a996..6bde7f73 100644
  	if err != nil {
  		return nil, err
  	}
-@@ -58,7 +61,7 @@ func parseNATTable(configuration *types.Configuration) map[tcpip.Address]tcpip.A
+@@ -47,6 +52,32 @@ func addServices(configuration *types.Configuration, s *stack.Stack, ipPool *tap
+ 	mux.Handle("/forwarder/", http.StripPrefix("/forwarder", portsForwarder.Mux()))
+ 	mux.Handle("/dhcp/", http.StripPrefix("/dhcp", dhcpMux))
+ 	mux.Handle("/dns/", http.StripPrefix("/dns", dnsMux))
++	mux.HandleFunc("/egress-policy/reload", func(w http.ResponseWriter, r *http.Request) {
++		if r.Method != http.MethodPost {
++			w.WriteHeader(http.StatusMethodNotAllowed)
++			return
++		}
++		var next types.EgressPolicy
++		decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
++		decoder.DisallowUnknownFields()
++		if err := decoder.Decode(&next); err != nil {
++			http.Error(w, "invalid egress policy", http.StatusBadRequest)
++			return
++		}
++		var trailing any
++		if err := decoder.Decode(&trailing); err != io.EOF {
++			http.Error(w, "invalid egress policy document", http.StatusBadRequest)
++			return
++		}
++		if err := egressPolicy.Update(&next); err != nil {
++			http.Error(w, "egress policy update rejected", http.StatusUnprocessableEntity)
++			return
++		}
++		w.Header().Set("Content-Type", "application/json")
++		_ = json.NewEncoder(w).Encode(struct {
++			Revision string `json:"revision"`
++		}{Revision: egressPolicy.Revision()})
++	})
+ 	return mux, nil
+ }
+ 
+@@ -58,7 +89,7 @@ func parseNATTable(configuration *types.Configuration) map[tcpip.Address]tcpip.A
  	return translation
  }
  
@@ -3293,7 +3419,7 @@ index 3ed9a996..6bde7f73 100644
  	udpConn, err := gonet.DialUDP(s, &tcpip.FullAddress{
  		NIC:  1,
  		Addr: tcpip.AddrFrom4Slice(net.ParseIP(configuration.GatewayIP).To4()),
-@@ -77,10 +80,25 @@ func dnsServer(configuration *types.Configuration, s *stack.Stack) (http.Handler
+@@ -77,10 +108,25 @@ func dnsServer(configuration *types.Configuration, s *stack.Stack) (http.Handler
  		return nil, err
  	}
  
@@ -3321,7 +3447,7 @@ index 3ed9a996..6bde7f73 100644
  	go func() {
  		if err := server.Serve(); err != nil {
 diff --git a/pkg/virtualnetwork/virtualnetwork.go b/pkg/virtualnetwork/virtualnetwork.go
-index b2b44614..5f4ac70d 100644
+index b2b4461..db2da27 100644
 --- a/pkg/virtualnetwork/virtualnetwork.go
 +++ b/pkg/virtualnetwork/virtualnetwork.go
 @@ -30,6 +30,7 @@ type VirtualNetwork struct {
@@ -3361,7 +3487,7 @@ index b2b44614..5f4ac70d 100644
  	if err != nil {
  		return nil, fmt.Errorf("cannot add network services: %w", err)
  	}
-@@ -103,10 +113,26 @@ func New(configuration *types.Configuration) (*VirtualNetwork, error) {
+@@ -103,11 +113,27 @@ func New(configuration *types.Configuration) (*VirtualNetwork, error) {
  		servicesMux:    mux,
  		ipPool:         ipPool,
  		portsForwarder: portsForwarder,
@@ -3389,62 +3515,4 @@ index b2b44614..5f4ac70d 100644
 +	return n.egressPolicy.Revision()
  }
  
-diff --git a/pkg/virtualnetwork/mux.go b/pkg/virtualnetwork/mux.go
-index 4f0ef8ca..6b9dc381 100644
---- a/pkg/virtualnetwork/mux.go
-+++ b/pkg/virtualnetwork/mux.go
-@@ -105,5 +105,9 @@ func (n *VirtualNetwork) ServicesMux() http.Handler {
- func (n *VirtualNetwork) ServicesMux() http.Handler {
--	return apilog.Middleware(n.newServicesMux())
-+	handler := http.Handler(n.newServicesMux())
-+	if n.apiToken != "" {
-+		handler = tokenauth.BearerAuthMiddleware(n.apiToken)(handler)
-+	}
-+	return apilog.Middleware(handler)
- }
- 
- // Mux returns the full mux (services + connect) wrapped with audit logging middleware.
-diff --git a/pkg/virtualnetwork/services.go b/pkg/virtualnetwork/services.go
-index 3ed9a996..eed8d7a8 100644
---- a/pkg/virtualnetwork/services.go
-+++ b/pkg/virtualnetwork/services.go
-@@ -3,5 +3,7 @@ package virtualnetwork
- import (
- 	"context"
-+	"encoding/json"
-+	"io"
- 	"net"
- 	"net/http"
- 	"sync"
-@@ -69,5 +71,31 @@ func addServices(configuration *types.Configuration, s *stack.Stack, ipPool *tap
- 	mux.Handle("/forwarder/", http.StripPrefix("/forwarder", portsForwarder.Mux()))
- 	mux.Handle("/dhcp/", http.StripPrefix("/dhcp", dhcpMux))
- 	mux.Handle("/dns/", http.StripPrefix("/dns", dnsMux))
-+	mux.HandleFunc("/egress-policy/reload", func(w http.ResponseWriter, r *http.Request) {
-+		if r.Method != http.MethodPost {
-+			w.WriteHeader(http.StatusMethodNotAllowed)
-+			return
-+		}
-+		var next types.EgressPolicy
-+		decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
-+		decoder.DisallowUnknownFields()
-+		if err := decoder.Decode(&next); err != nil {
-+			http.Error(w, "invalid egress policy", http.StatusBadRequest)
-+			return
-+		}
-+		var trailing any
-+		if err := decoder.Decode(&trailing); err != io.EOF {
-+			http.Error(w, "invalid egress policy document", http.StatusBadRequest)
-+			return
-+		}
-+		if err := egressPolicy.Update(&next); err != nil {
-+			http.Error(w, "egress policy update rejected", http.StatusUnprocessableEntity)
-+			return
-+		}
-+		w.Header().Set("Content-Type", "application/json")
-+		_ = json.NewEncoder(w).Encode(struct {
-+			Revision string `json:"revision"`
-+		}{Revision: egressPolicy.Revision()})
-+	})
- 	return mux, nil
- }
+ func (n *VirtualNetwork) BytesSent() uint64 {
